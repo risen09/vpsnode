@@ -1,0 +1,16 @@
+/node_modules
+/.zrok
+.env
+zrok
+zrok_1.0.0_linux_amd64.tar.gz
+/.npm
+/.vscode-server
+/.bash_history
+/.bash_logout
+/.bashrc
+/.profile
+/.cache
+/.server.js.swp
+/.sudo_as_admin_successful
+/.viminfo
+/.wget-hsts

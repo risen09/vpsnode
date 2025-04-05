@@ -1,0 +1,276 @@
+2025-04-04 15:42:15.899 [info] Extension host with pid 255841 started
+2025-04-04 15:42:16.307 [info] ExtensionService#_doActivateExtension vscode.git-base, startup: false, activationEvent: '*', root cause: vscode.git
+2025-04-04 15:42:16.318 [info] ExtensionService#_doActivateExtension vscode.tunnel-forwarding, startup: false, activationEvent: 'onTunnel'
+2025-04-04 15:42:16.320 [info] ExtensionService#_doActivateExtension vscode.emmet, startup: false, activationEvent: 'onLanguage'
+2025-04-04 15:42:16.329 [info] ExtensionService#_doActivateExtension vscode.typescript-language-features, startup: false, activationEvent: 'onLanguage:javascript'
+2025-04-04 15:42:17.300 [info] Lock '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock': Lock acquired.
+2025-04-04 15:42:17.457 [info] ExtensionService#_doActivateExtension vscode.npm, startup: true, activationEvent: 'workspaceContains:package.json'
+2025-04-04 15:42:20.036 [info] ExtensionService#_doActivateExtension vscode.git, startup: false, activationEvent: '*'
+2025-04-04 15:42:20.038 [info] ExtensionService#_doActivateExtension vscode.github, startup: false, activationEvent: '*'
+2025-04-04 15:42:27.439 [info] ExtensionService#_doActivateExtension vscode.debug-auto-launch, startup: false, activationEvent: 'onStartupFinished'
+2025-04-04 15:42:27.462 [info] ExtensionService#_doActivateExtension vscode.merge-conflict, startup: false, activationEvent: 'onStartupFinished'
+2025-04-04 15:42:28.343 [info] Eager extensions activated
+2025-04-04 15:42:34.373 [info] ExtensionService#_doActivateExtension vscode.configuration-editing, startup: false, activationEvent: 'onLanguage:json'
+2025-04-04 15:42:34.375 [info] ExtensionService#_doActivateExtension vscode.extension-editing, startup: false, activationEvent: 'onLanguage:json'
+2025-04-04 15:42:34.388 [info] ExtensionService#_doActivateExtension vscode.json-language-features, startup: false, activationEvent: 'onLanguage:json'
+2025-04-06 01:00:33.765 [info] ExtensionService#_doActivateExtension vscode.markdown-language-features, startup: false, activationEvent: 'onLanguage:markdown'
+2025-04-06 01:00:36.073 [info] ExtensionService#_doActivateExtension vscode.markdown-math, startup: false, activationEvent: 'api', root cause: vscode.markdown-language-features
+2025-04-06 01:10:25.081 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:10:28.074 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:10:34.730 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:10:40.608 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:10:47.605 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:10:54.327 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:00.903 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:07.186 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:13.904 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:20.572 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:25.351 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:28.849 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:35.505 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:43.464 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:49.382 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:11:55.066 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:00.962 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:06.561 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:12.213 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:17.571 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:23.508 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:29.350 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:35.199 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:40.903 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:46.973 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:52.719 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:12:58.425 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:03.981 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:09.431 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:14.955 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:20.526 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:26.405 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:32.093 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:37.613 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:43.099 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:49.104 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:13:54.697 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:14:00.405 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:14:06.138 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:14:11.615 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:14:17.664 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3909
+2025-04-06 01:14:23.531 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:29.437 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:35.360 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:40.858 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:47.021 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:52.799 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:14:58.265 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:04.744 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:10.170 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:16.018 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:21.439 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:26.725 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:32.243 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:38.285 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:43.733 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:49.043 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:15:54.806 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:00.720 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:06.515 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:11.819 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:17.515 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:23.630 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:30.066 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:35.866 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:41.493 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:46.928 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:52.386 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:16:58.885 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:04.841 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:10.610 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:16.604 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:21.970 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:28.217 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:33.836 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:39.480 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:44.989 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:51.023 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:17:57.045 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:02.366 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:08.482 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:13.973 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:19.813 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:25.208 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:30.595 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:36.733 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:42.764 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:18:50.021 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:19:05.192 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:19:19.041 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:19:41.789 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:19:58.627 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:08.508 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:16.067 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:25.228 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:35.890 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:43.842 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:20:58.479 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:21:12.502 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:21:31.643 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:21:44.739 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:21:52.162 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:01.255 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:13.293 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:24.137 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:30.860 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:36.678 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:42.373 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:48.302 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:22:54.520 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:02.112 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:09.485 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:15.340 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:22.506 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:28.672 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:36.330 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:43.808 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:23:51.466 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:01.956 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:10.465 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:28.064 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:40.367 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:47.077 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:24:57.794 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:25:16.238 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:25:49.862 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:26:46.840 [warning] [Decorations] CAPPING events from decorations provider vscode.git 3910
+2025-04-06 01:27:30.930 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:31.367 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:31.636 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:31.843 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:32.086 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:32.306 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:32.473 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:32.905 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:33.428 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:34.496 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:35.382 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:36.106 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:36.770 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:37.491 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:38.221 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:39.387 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:39.766 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:40.383 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:41.190 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:42.233 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:42.600 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:43.451 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:44.304 [error] Error: Cannot call write after a stream was destroyed
+	at errorBuffer (node:internal/streams/writable:733:33)
+	at afterWrite (node:internal/streams/writable:714:5)
+	at onwrite (node:internal/streams/writable:688:7)
+	at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:88:12)
+2025-04-06 01:27:51.087 [info] Extension host with pid 464984 started
+2025-04-06 01:27:51.088 [error] Error: EEXIST: file already exists, open '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock'
+2025-04-06 01:27:51.099 [info] Lock '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock': Could not acquire lock, checking if the file is stale.
+2025-04-06 01:27:51.129 [info] Lock '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock': The pid 255841 appears to be gone.
+2025-04-06 01:27:51.130 [info] Lock '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock': Deleting a stale lock.
+2025-04-06 01:27:51.145 [info] Lock '/home/aituter/.vscode-server/data/User/workspaceStorage/d21591536bca993b7ac21f0ae52d14a9/vscode.lock': Lock acquired.
+2025-04-06 01:27:51.235 [info] ExtensionService#_doActivateExtension vscode.git-base, startup: false, activationEvent: '*', root cause: vscode.git
+2025-04-06 01:27:51.237 [info] ExtensionService#_doActivateExtension vscode.tunnel-forwarding, startup: false, activationEvent: 'onTunnel'
+2025-04-06 01:27:51.238 [info] ExtensionService#_doActivateExtension vscode.emmet, startup: false, activationEvent: 'onLanguage'
+2025-04-06 01:27:51.239 [info] ExtensionService#_doActivateExtension vscode.typescript-language-features, startup: false, activationEvent: 'onLanguage:javascript'
+2025-04-06 01:27:51.239 [info] ExtensionService#_doActivateExtension vscode.configuration-editing, startup: false, activationEvent: 'onLanguage:json'
+2025-04-06 01:27:51.240 [info] ExtensionService#_doActivateExtension vscode.extension-editing, startup: false, activationEvent: 'onLanguage:json'
+2025-04-06 01:27:51.240 [info] ExtensionService#_doActivateExtension vscode.json-language-features, startup: false, activationEvent: 'onLanguage:json'
+2025-04-06 01:27:51.241 [info] ExtensionService#_doActivateExtension vscode.npm, startup: false, activationEvent: 'onLanguage:json'
+2025-04-06 01:27:51.241 [info] ExtensionService#_doActivateExtension vscode.markdown-language-features, startup: false, activationEvent: 'onLanguage:markdown'
+2025-04-06 01:27:53.079 [info] ExtensionService#_doActivateExtension vscode.git, startup: false, activationEvent: '*'
+2025-04-06 01:27:53.084 [info] ExtensionService#_doActivateExtension vscode.github, startup: false, activationEvent: '*'

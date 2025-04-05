@@ -1,0 +1,19 @@
+2025-04-01 20:02:32.383 [info] 
+
+
+
+
+2025-04-01 20:02:32.443 [info] Extension host agent started.
+2025-04-01 20:02:32.630 [info] Started initializing default profile extensions in extensions installation folder. file:///home/aituter/.vscode-server/extensions
+2025-04-01 20:02:32.661 [info] [<unknown>][899beaa6][ManagementConnection] New connection established.
+2025-04-01 20:02:32.664 [info] Completed initializing default profile extensions in extensions installation folder. file:///home/aituter/.vscode-server/extensions
+2025-04-01 20:02:32.673 [info] [<unknown>][f4640b7d][ExtensionHostConnection] New connection established.
+2025-04-01 20:02:33.032 [info] [<unknown>][f4640b7d][ExtensionHostConnection] <27226> Launched Extension Host Process.
+2025-04-01 20:03:24.962 [info] [<unknown>][899beaa6][ManagementConnection] The client has disconnected gracefully, so the connection will be disposed.
+2025-04-01 20:03:25.110 [info] [<unknown>][f4640b7d][ExtensionHostConnection] <27226> Extension Host Process exited with code: 0, signal: null.
+2025-04-01 20:03:25.112 [info] Cancelling previous shutdown timeout
+2025-04-01 20:03:25.112 [info] Last EH closed, waiting before shutting down
+2025-04-01 20:03:28.639 [info] [<unknown>][d731ae7f][ExtensionHostConnection] New connection established.
+2025-04-01 20:03:28.641 [info] [<unknown>][09279b10][ManagementConnection] New connection established.
+2025-04-01 20:03:28.661 [info] [<unknown>][d731ae7f][ExtensionHostConnection] <27272> Launched Extension Host Process.
+2025-04-01 20:08:25.127 [info] New EH opened, aborting shutdown
