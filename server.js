@@ -205,6 +205,8 @@ app.delete('/api/:collection/:id', authenticate, async (req, res) => {
   }
 });
 
+app.use('/gigachat', require('./routes/gigachat'));
+
 app.listen(3000, '0.0.0.0', () => {
   console.log('API с JWT запущен на http://0.0.0.0:3000');
 });
