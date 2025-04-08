@@ -47,8 +47,7 @@ async function authenticate(req, res, next) {
       }
       
       req.user = { 
-        ...decoded, 
-        ...userInfo._id,
+        _id: userInfo._id.toString(),
       };
     } catch (err) {
       console.error('Ошибка при получении данных пользователя:', err);
@@ -165,6 +164,23 @@ app.delete('/api/users/:id', authenticate, async (req, res) => {
     await client.close();
   }
 });
+
+app.get('/api/users/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const client = new MongoClient(MONGODB_URI);
+
+  try {
+    await client.connect();
+    const user = await client.db('DatabaseAi').collection('myCollection').findOne({ _id: new ObjectId(id) });
+    res.json(user);
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  } finally {
+    await client.close();
+  }
+});
+
 // Защищенный эндпоинт
 app.get('/api/users', authenticate, async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
