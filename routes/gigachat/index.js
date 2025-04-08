@@ -1,6 +1,6 @@
 const https = require('https');
 const { GigaChat } = require("langchain-gigachat");
-const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
+const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
 const router = require('express').Router();
 const { ObjectId } = require('mongodb');
 
@@ -17,59 +17,117 @@ const giga = new GigaChat({
     httpsAgent
 })
 
-const messages = [
-    new SystemMessage("Ты помощник-репетитор для школьников 5-11 классов. Ты отлично знаешь математику, физику,программирование. Ты умеешь объяснять задачи и помогать решать их. Ты всегда готов помочь. Ты готов помочь школьникам и студентам решать задачи и понимать теорию. "),
-    // new HumanMessage("Привет! Объясни мне как решать квадратные уравнения. Я istj, я учусь в 7 классе."),
-];
+router.get('/chat/:id', async (req, res) => {
+    const { id } = req.params;
+    const token = req.headers.authorization.split(' ')[1];
+    const chatHistoryResponse = await fetch(`http://localhost:3000/api/chatHistory/${id}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    res.send(await chatHistoryResponse.json());
+})
 
 router.post('/chat/:id', async (req, res) => {
-    const { id } = req.params;
-    const message = req.body.message;
-    const { cognitive_profile, selected_subjects } = req.user;
+   const token = req.headers.authorization.split(' ')[1];
+   const { id } = req.params;
+   const message = req.body.message;
+   const { _id } = req.user;
 
-    const personalizedMessage = `
-        Помоги мне пожалуйста со следующим запросом:
-        ${message}
-        
-        Учитывая мой (Cognitive Profile) и выбранные предметы (Selected Subjects), ответь на вопрос.
+   // Получение данных пользователя
+   const userResponse = await fetch(`http://localhost:3000/api/users/${_id}`, {
+       method: 'GET',
+       headers: {
+           'Authorization': `Bearer ${token}`,
+           'Content-Type': 'application/json'
+       }
+   });
 
-        Cognitive Profile: ${JSON.stringify(cognitive_profile)}
-        Selected Subjects: ${selected_subjects.join(', ')}
-    `;
+   const { cognitive_profile, selected_subjects } = await userResponse.json();
 
-    console.log(personalizedMessage);
+   // Получение истории чата
+   const chatHistoryResponse = await fetch(`http://localhost:3000/api/gigachat/chat/${id}`, {
+       method: 'GET',
+       headers: {
+           'Authorization': `Bearer ${token}`,
+           'Content-Type': 'application/json'
+       }
+   })
 
-    messages.push(new HumanMessage(message));
+   const chatHistory = await chatHistoryResponse.json();
+   const userId = chatHistory.user_id;
+   if (userId !== _id) {
+       return res.status(401).json({ error: 'Вы не имеете доступ к этому чату' });
+   }
+   const messages = chatHistory.messages;
 
-    try {
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Неверный формат ID' });
-        }
+   // Создание персонализированного сообщения
+   const personalizedMessage = `
+       Помоги мне пожалуйста со следующим запросом:
+       "${message}"
+       
+       Учитывая мой (Cognitive Profile) и выбранные предметы (Selected Subjects), ответь на вопрос.
 
-        const token = req.headers.authorization.split(' ')[1];
-        const response = await fetch(`http://localhost:3000/api/chatHistory/${id}`, {
-            method: 'POST',
-            body: JSON.stringify({messages}),
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Ошибка при сохранении истории чата:', errorText);
-            return res.status(response.status).json({ error: 'Ошибка при сохранении истории чата' });
-        }
-        
-        const responseData = await response.json();
-        console.log('История чата сохранена:', responseData);
-        
-        const gigaResponse = await giga.invoke(messages);
-        console.log(gigaResponse.content);
-        return res.send({message: gigaResponse.content});
-    } catch (error) {
-        console.error('Ошибка:', error);
-        return res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-    }
-});
+       Cognitive Profile: ${JSON.stringify(cognitive_profile)}
+       Selected Subjects: ${selected_subjects.join(', ')}
+   `;
+
+   console.log(personalizedMessage);
+
+   try {
+       // Получение ответа от AI
+       const formattedMessages = messages.map(msg => {
+           if (msg.role === 'user') {
+               return new HumanMessage(msg.content);
+           } else if (msg.role === 'assistant') {
+               return new AIMessage(msg.content);
+           }
+           return new SystemMessage(msg.content);
+       });
+
+       const aiMessage = await giga.invoke([
+           ...formattedMessages,
+           new HumanMessage(personalizedMessage)
+       ]);
+       console.log(aiMessage.content);
+
+       messages.push({
+           role: 'user',
+           content: message
+       });
+       messages.push({
+           role: 'assistant',
+           content: aiMessage.content
+       });
+
+       // Проверка формата ID
+       if (!ObjectId.isValid(id)) {
+           return res.status(400).json({ error: 'Неверный формат ID' });
+       }
+
+       // Сохранение истории чата
+       const response = await fetch(`http://localhost:3000/api/chatHistory/${id}`, {
+           method: 'POST',
+           body: JSON.stringify({user_id: _id, messages: messages}),
+           headers: {
+               'Authorization': `Bearer ${token}`,
+               'Content-Type': 'application/json'
+           }
+       });
+       
+       if (!response.ok) {
+           const errorText = await response.text();
+           console.error('Ошибка при сохранении истории чата:', errorText);
+           return res.status(response.status).json({ error: 'Ошибка при сохранении истории чата' });
+       }
+       
+       const responseData = await response.json();
+       console.log('История чата сохранена:', responseData);
+       return res.send({message: aiMessage.content});
+   } catch (error) {
+       console.error('Ошибка:', error);
+       return res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+   }
+})
