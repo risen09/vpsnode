@@ -30,12 +30,32 @@ const basicAuth = (req, res, next) => {
 };
 
 // Middleware JWT аутентификации
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Требуется токен' });
 
   try {
-    req.user = jwt.verify(token, SECRET);
+    const decoded = jwt.verify(token, SECRET);
+    const client = new MongoClient(MONGODB_URI);
+    
+    try {
+      await client.connect();
+      const userInfo = await client.db('DatabaseAi').collection('myCollection').findOne({ username: decoded.username });
+      
+      if (!userInfo) {
+        return res.status(401).json({ error: 'Пользователь не найден' });
+      }
+      
+      req.user = { 
+        ...decoded, 
+        ...userInfo._id,
+      };
+    } catch (err) {
+      console.error('Ошибка при получении данных пользователя:', err);
+      req.user = decoded;
+    } finally {
+      await client.close();
+    }
     next();
   } catch (err) {
     res.status(403).json({ error: 'Неверный или просроченный токен' });
@@ -43,9 +63,28 @@ function authenticate(req, res, next) {
 }
 
 // Эндпоинт для получения токена
-app.post('/api/login', basicAuth, (req, res) => {
-  const token = jwt.sign({ username: 'admin' }, SECRET, { expiresIn: '1h' });
-  res.json({ token });
+app.post('/api/login', basicAuth, async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  
+  try {
+    await client.connect();
+    const user = await client.db('DatabaseAi').collection('myCollection').findOne({ username: 'admin' });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Пользователь не найден' });
+    }
+    
+    const token = jwt.sign({ 
+      username: user.username,
+    }, SECRET, { expiresIn: '1h' });
+    
+    res.json({ token });
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  } finally {
+    await client.close();
+  }
 });
 
 app.post('/api/users', authenticate, async (req, res) => {
@@ -53,8 +92,25 @@ app.post('/api/users', authenticate, async (req, res) => {
   
   try {
     await client.connect();
-    const user = await client.db('DatabaseAi').collection('myCollection').insertOne(req.body);
-    res.status(201).json({ _id: user.insertedId, ...req.body });
+    
+    // Проверяем наличие обязательного поля username
+    if (!req.body.username) {
+      return res.status(400).json({ error: 'Требуется поле username' });
+    }
+    
+    // Проверяем, не существует ли уже пользователь с таким username
+    const existingUser = await client.db('DatabaseAi').collection('myCollection').findOne({ username: req.body.username });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Пользователь с таким username уже существует' });
+    }
+    
+    const user = await client.db('DatabaseAi').collection('myCollection').insertOne({
+      ...req.body,
+      username: req.body.username,
+      role: 'user' // По умолчанию устанавливаем роль 'user'
+    });
+    
+    res.status(201).json({ _id: user.insertedId, ...req.body, role: 'user' });
   } catch (err) {
     console.error('MongoDB error:', err);
     res.status(500).json({ error: 'Ошибка базы данных' });
@@ -158,8 +214,24 @@ app.get('/api/:collection', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/:collection/:id', authenticate, async (req, res) => {
+  const { collection, id } = req.params;
+  const client = new MongoClient(MONGODB_URI);
+
+  try {
+    await client.connect();
+    const data = await client.db('DatabaseAi').collection(collection).findOne({ _id: new ObjectId(id) });
+    res.json(data);
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  } finally {
+    await client.close();
+  }
+});
+
 // Обновление записи в коллекции по ID
-app.put('/api/:collection/:id', authenticate, async (req, res) => {
+app.post('/api/:collection/:id', authenticate, async (req, res) => {
   const { collection, id } = req.params;
   const client = new MongoClient(MONGODB_URI);
 
@@ -205,7 +277,7 @@ app.delete('/api/:collection/:id', authenticate, async (req, res) => {
   }
 });
 
-app.use('/gigachat', require('./routes/gigachat'));
+app.use('/api/gigachat', authenticate, require('./routes/gigachat'));
 
 app.listen(3000, '0.0.0.0', () => {
   console.log('API с JWT запущен на http://0.0.0.0:3000');
