@@ -17,6 +17,37 @@ const giga = new GigaChat({
     httpsAgent
 })
 
+router.post('/chat/new', async (req, res) => {
+    const { _id } = req.user;
+    const token = req.headers.authorization.split(' ')[1];
+
+    const messages = [
+        {
+            role: 'system',
+            content: 'Ты помощник-репетитор для школьников 5-11 классов. Ты отлично знаешь математику, физику,программирование. Ты умеешь объяснять задачи и помогать решать их. Ты всегда готов помочь. Ты готов помочь школьникам и студентам решать задачи и понимать теорию. Ты отвечаешь на вопросы и помогаешь с домашними заданиями.'
+        }
+    ]
+    
+    const response = await fetch(`http://localhost:3000/api/chatHistory/`, {
+        method: 'POST',
+        body: JSON.stringify({user_id: _id, messages: messages}),
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Ошибка при сохранении истории чата:', errorText);
+        return res.status(response.status).json({ error: 'Ошибка при сохранении истории чата' });
+    }   
+    
+    const responseData = await response.json();
+    console.log('История чата сохранена:', responseData);
+    return res.send({chat_id: responseData.id});
+})
+
 router.get('/chat/:id', async (req, res) => {
     const { id } = req.params;
     const token = req.headers.authorization.split(' ')[1];
