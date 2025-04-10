@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 const SECRET = process.env.JWT_SECRET || 'ваш_резервный_секрет';
-const MONGODB_URI = 'mongodb://AiTutur:kfuai@127.0.0.1:27017/?authSource=admin';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // Middleware для Basic Auth (если используется в Zrok)
 const basicAuth = (req, res, next) => {
@@ -60,6 +60,8 @@ async function authenticate(req, res, next) {
     res.status(403).json({ error: 'Неверный или просроченный токен' });
   }
 }
+
+app.use('/api/gigachat', authenticate, require('./routes/gigachat'));
 
 // Эндпоинт для получения токена
 app.post('/api/login', basicAuth, async (req, res) => {
@@ -292,8 +294,6 @@ app.delete('/api/:collection/:id', authenticate, async (req, res) => {
     await client.close();
   }
 });
-
-app.use('/api/gigachat', authenticate, require('./routes/gigachat'));
 
 app.listen(3000, '0.0.0.0', () => {
   console.log('API с JWT запущен на http://0.0.0.0:3000');
