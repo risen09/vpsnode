@@ -7,15 +7,15 @@ const { MongoClient } = require('mongodb');
 
 module.exports = router
 
-const httpsAgent = new https.Agent({
-    rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
-});
+// const httpsAgent = new https.Agent({
+//     rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
+// });
 
 const giga = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
     model: 'GigaChat-2',
     maxTokens: 200,
-    httpsAgent
+//    httpsAgent
 });
 
 router.get('/list', async (req, res) => {
@@ -46,7 +46,7 @@ router.post('/new', async (req, res) => {
         }
     ]
     
-    const response = await fetch(`http://localhost:3000/api/chatHistory/`, {
+    const response = await fetch(`http://127.0.0.1:3000/api/chatHistory/`, {
         method: 'POST',
         body: JSON.stringify({user_id: _id, messages: messages}),
         headers: {
@@ -71,7 +71,7 @@ router.get('/chat/:id', async (req, res) => {
    const token = req.headers.authorization.split(' ')[1];
 
    console.log('Получение истории чата');
-   const chatHistoryResponse = await fetch(`http://localhost:3000/api/chatHistory/${id}`, {
+   const chatHistoryResponse = await fetch(`http://127.0.0.1:3000/api/chatHistory/${id}`, {
        method: 'GET',
        headers: {
            'Authorization': `Bearer ${token}`,
@@ -90,7 +90,7 @@ router.post('/chat/:id', async (req, res) => {
   const { _id } = req.user;
 
   console.log('Получение данных пользователя');
-  const userResponse = await fetch(`http://localhost:3000/api/users/${_id}`, {
+  const userResponse = await fetch(`http://127.0.0.1:3000/api/users/${_id}`, {
       method: 'GET',
       headers: {
           'Authorization': `Bearer ${token}`,
@@ -101,7 +101,7 @@ router.post('/chat/:id', async (req, res) => {
   const { cognitive_profile, selected_subjects } = await userResponse.json();
 
   console.log('Получение истории чата');
-  const chatHistoryResponse = await fetch(`http://localhost:3000/api/gigachat/chat/${id}`, {
+  const chatHistoryResponse = await fetch(`http://127.0.0.1:3000/api/gigachat/chat/${id}`, {
       method: 'GET',
       headers: {
           'Authorization': `Bearer ${token}`,
@@ -125,7 +125,7 @@ router.post('/chat/:id', async (req, res) => {
       Учитывая мой (Cognitive Profile) и выбранные предметы (Selected Subjects), ответь на вопрос.
 
       Cognitive Profile: ${JSON.stringify(cognitive_profile)}
-      Selected Subjects: ${selected_subjects.join(', ')}
+      Selected Subjects: ${selected_subjects ? selected_subjects.join(', ') : 'Не указаны'}
   `;
 
   console.log(personalizedMessage);
@@ -163,7 +163,7 @@ router.post('/chat/:id', async (req, res) => {
       }
 
       console.log('Сохранение истории чата');
-      const response = await fetch(`http://localhost:3000/api/chatHistory/${id}`, {
+      const response = await fetch(`http://127.0.0.1:3000/api/chatHistory/${id}`, {
           method: 'POST',
           body: JSON.stringify({user_id: _id, messages: messages}),
           headers: {
