@@ -1,4 +1,11 @@
 {
+  "name": "VPS-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+},
   "dependencies": {
     "@langchain/community": "^0.3.40",
     "@langchain/core": "^0.3.44",
