@@ -2,12 +2,18 @@ const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
 const { GigaChat } = require("langchain-gigachat");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
+const https = require('https');
+
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
+});
 
 // Инициализация GigaChat клиента
 const giga = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
     model: 'GigaChat-2',
     maxTokens: 1500, // Увеличиваем токены для более детальных ответов
+    httpsAgent
 });
 
 // Системное сообщение для диагностики
@@ -42,6 +48,26 @@ const DIAGNOSTIC_SYSTEM_PROMPT = `
 
 Всегда отвечай дружелюбно и задавай уточняющие вопросы, если информации недостаточно.
 Общайся на русском языке.
+`;
+
+// Новый системный промпт для одноразового агента диагностики
+const DIAGNOSTIC_AGENT_PROMPT = `
+Ты - AI ассистент, выполняющий анализ предоставленных учебных потребностей.
+Твоя задача - проанализировать входные данные: предметную область (field), интересующие темы (subjects), и уровень сложности (difficulty).
+На основе этого анализа ты должен сгенерировать ТОЛЬКО JSON объект со следующей структурой:
+"""
+{
+  "diagnosticResult": {
+    "subjectArea": "название предмета из field.name",
+    "topic": "основная или наиболее релевантная тема из subjects",
+    "difficulty": "уровень сложности из difficulty.id",
+    "needsInitialTest": true/false, // Определи, нужен ли тест для уточнения уровня
+    "suggestedTopics": ["тема1", "тема2", "тема3"] // Предложи смежные темы (не более 3-5) на основе subjects
+  }
+}
+"""
+НЕ ДОБАВЛЯЙ никакого другого текста, приветствий или объяснений в свой ответ. Только JSON объект в тройных кавычках, как указано выше.
+Входные данные будут предоставлены в сообщении пользователя.
 `;
 
 // Создание нового диагностического чата
@@ -218,6 +244,85 @@ router.post('/sendMessage', async (req, res) => {
     } catch (error) {
         console.error('Ошибка при отправке сообщения:', error);
         res.status(500).json({ error: 'Ошибка при обработке сообщения' });
+    }
+});
+
+// Эндпоинт для структурированной начальной диагностики (одноразовый агент)
+router.post('/diagnostics', async (req, res) => {
+    try {
+        const { field, subjects, difficulty } = req.body;
+
+        // Валидация входных данных
+        if (!field || !field.id || !field.name ||
+            !subjects || !Array.isArray(subjects) || subjects.length === 0 || subjects.some(s => !s.id || !s.name) ||
+            !difficulty || !difficulty.id || !difficulty.name) {
+            return res.status(400).json({ error: 'Некорректный формат входных данных. Требуются field, subjects (массив) и difficulty с полями id и name.' });
+        }
+
+        // Формируем входные данные для LLM
+        const subjectNames = subjects.map(s => s.name).join(', ');
+        const userInputContent = `Предметная область: ${field.name} (id: ${field.id})\nИнтересующие темы: ${subjectNames}\nУровень сложности: ${difficulty.name} (id: ${difficulty.id})`;
+
+        // Формируем сообщения для отправки в GigaChat
+        const messages = [
+            new SystemMessage(DIAGNOSTIC_AGENT_PROMPT),
+            new HumanMessage(userInputContent)
+        ];
+
+        // Получаем ответ от GigaChat
+        console.log("Отправка запроса GigaChat для одноразовой диагностики...");
+        const aiResponse = await giga.invoke(messages);
+        const responseContent = aiResponse.content;
+        console.log("Получен ответ от GigaChat:", responseContent);
+
+
+        // Обработка ответа и извлечение JSON
+        let diagnosticResult = null;
+        let parsedJson = null;
+        const match = responseContent.match(/```(?:json)?\n?([\s\S]*?)```/);
+
+        try {
+            if (match && match[1]) {
+                // Пытаемся извлечь из блока ```
+                const jsonStr = match[1].trim();
+                console.log("Извлечен JSON из блока ```:", jsonStr);
+                parsedJson = JSON.parse(jsonStr);
+            } else {
+                // Если блока ``` нет, пытаемся парсить весь ответ как JSON
+                console.log("Блок ``` не найден, пытаемся парсить весь ответ...");
+                parsedJson = JSON.parse(responseContent.trim());
+                console.log("Весь ответ успешно распарсен как JSON.");
+            }
+
+             // Убедимся, что структура соответствует ожиданиям
+            if (parsedJson && parsedJson.diagnosticResult &&
+                typeof parsedJson.diagnosticResult.subjectArea === 'string' &&
+                typeof parsedJson.diagnosticResult.topic === 'string' &&
+                typeof parsedJson.diagnosticResult.difficulty === 'string' &&
+                typeof parsedJson.diagnosticResult.needsInitialTest === 'boolean' &&
+                Array.isArray(parsedJson.diagnosticResult.suggestedTopics)) {
+                diagnosticResult = parsedJson.diagnosticResult;
+                console.log("JSON успешно валидирован:", diagnosticResult);
+            } else {
+                 console.error('Распарсенный JSON имеет неверную структуру или отсутствует поле diagnosticResult:', parsedJson);
+                 throw new Error('Invalid JSON structure in LLM response');
+            }
+
+        } catch (e) {
+            console.error('Ошибка при парсинге JSON из ответа GigaChat:', e, "\nОтвет:", responseContent);
+            return res.status(500).json({ error: 'Ошибка при обработке ответа LLM: не удалось извлечь или распарсить валидный JSON.', rawResponse: responseContent });
+        }
+
+
+        // Возвращаем только diagnosticResult
+        res.status(200).json(diagnosticResult);
+
+    } catch (error) {
+        console.error('Ошибка в эндпоинте /diagnostics:', error);
+        // Проверяем, был ли уже отправлен ответ
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Внутренняя ошибка сервера при выполнении диагностики.' });
+        }
     }
 });
 
