@@ -13,7 +13,7 @@ app.use('/api/study-plans', authenticate, require('./routes/agents/study-plan'))
 app.use('/api/track-assistants', authenticate, require('./routes/agents/track-assistant'));
 app.use('/api/progress-analyzer', authenticate, require('./routes/agents/progress-analyzer'));
 // Добавляем маршрут для начальной диагностики
-app.use('/api/initial-diagnostics', authenticate, require('./routes/agents/initial-diagnostics'));
+app.use('/api/initial-diagnostics', require('./routes/agents/initial-diagnostics'));
 // Добавляем маршрут для работы с тестами
 app.use('/api/tests', authenticate, require('./routes/agents/tests'));
 
