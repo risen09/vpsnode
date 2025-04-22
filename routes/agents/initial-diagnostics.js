@@ -2,19 +2,25 @@ const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
 const { GigaChat } = require("langchain-gigachat");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
+const { JsonOutputParser } = require("@langchain/core/output_parsers");
 const https = require('https');
+const { ChatOllama } = require('@langchain/ollama');
 
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
 });
 
 // Инициализация GigaChat клиента
-const giga = new GigaChat({
-    credentials: process.env.GIGACHAT_CREDENTIALS,
-    model: 'GigaChat-2',
-    maxTokens: 1500, // Увеличиваем токены для более детальных ответов
-    httpsAgent
-});
+// const giga = new GigaChat({
+//     credentials: process.env.GIGACHAT_CREDENTIALS,
+//     model: 'GigaChat-2',
+//     maxTokens: 1500, // Увеличиваем токены для более детальных ответов
+//     httpsAgent
+// });
+const giga = new ChatOllama({
+    model: 'gemma3:1b'
+})
 
 // Системное сообщение для диагностики
 const DIAGNOSTIC_SYSTEM_PROMPT = `
@@ -52,276 +58,109 @@ const DIAGNOSTIC_SYSTEM_PROMPT = `
 
 // Новый системный промпт для одноразового агента диагностики
 const DIAGNOSTIC_AGENT_PROMPT = `
-Ты - AI ассистент, выполняющий анализ предоставленных учебных потребностей.
-Твоя задача - проанализировать входные данные: предметную область (field), интересующие темы (subjects), и уровень сложности (difficulty).
-На основе этого анализа ты должен сгенерировать ТОЛЬКО JSON объект со следующей структурой:
-"""
-{
-  "diagnosticResult": {
-    "subjectArea": "название предмета из field.name",
-    "topic": "основная или наиболее релевантная тема из subjects",
-    "difficulty": "уровень сложности из difficulty.id",
-    "needsInitialTest": true/false, // Определи, нужен ли тест для уточнения уровня
-    "suggestedTopics": ["тема1", "тема2", "тема3"] // Предложи смежные темы (не более 3-5) на основе subjects
-  }
-}
-"""
-НЕ ДОБАВЛЯЙ никакого другого текста, приветствий или объяснений в свой ответ. Только JSON объект в тройных кавычках, как указано выше.
-Входные данные будут предоставлены в сообщении пользователя.
+Ты - AI ассистент, выполняющий анализ предоставленных учебных потребностей и результатов тестов.
+Твоя задача - проанализировать входные данные:
+1.  Предметную область (\`field\`)
+2.  Интересующие темы (\`subjects\`)
+3.  Заявленный уровень сложности (\`difficulty\`)
+4.  Результаты пройденного теста (\`testResults\`), если они предоставлены.
+
+На основе этого анализа ты должен:
+1. Провести диагностику анкеты пользователя (\`diagnosticResult\`):
+1.1.  Определить основную предметную область (\`subjectArea\`) из \`field.name\`.
+1.2.  Определить основную тему (\`topic\`) из \`subjects\`.
+1.3.  Оценить или уточнить уровень сложности (\`diff-iculty\`) пользователя, учитывая как заявленный уровень, так и анализ \`testResults\` (если есть). Используй значения 'basic', 'intermediate', 'advanced'.
+1.4.  Определить, нужен ли дополнительный тест (\`needsInitialTest\`) для более точной оценки (например, если результаты теста отсутствуют, неоднозначны или недостаточны).
+1.5.  Предложить смежные темы для изучения (\`suggestedTopics\`, не более 3-5) на основе \`subjects\` и результатов анализа.
+2. Определить (\`nextAction\`), готов ли пользователь к обучению (\`createTrack\`), или нужен дополнительный тест (\`startTest\`)
+
+Сгенерируй ТОЛЬКО JSON объект, соответствующий предоставленным инструкциям по форматированию.
+
+Входные данные будут предоставлены в сообщении пользователя в следующем формате:
+Предметная область: [Название] (id: [ID])
+Интересующие темы: [Список тем]
+Уровень сложности: [Название] (id: [ID])
+Результаты теста: [Структура JSON с результатами теста или "отсутствуют"]
+
+Структура JSON для \`Результаты теста\`: Объект, где ключи - это названия предметов (например, "algebra"), а значения - массивы объектов вида { "question": "answer" }. Пример: {"algebra": [{"question1": 2}, {"question2": -0.65}], "chemistry": [{"q1": "H2O"}]}
+
+{format_instructions}
+
+НЕ ДОБАВЛЯЙ никакого другого текста, приветствий или объяснений в свой ответ. Только JSON объект.
 `;
-
-// Создание нового диагностического чата
-router.post('/new', async (req, res) => {
-    try {
-        const { _id } = req.user;
-        
-        // Создаем новый чат в MongoDB
-        const client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        
-        const result = await client.db('DatabaseAi').collection('diagnosticChats').insertOne({
-            user_id: _id,
-            messages: [
-                {
-                    role: 'system',
-                    content: DIAGNOSTIC_SYSTEM_PROMPT
-                }
-            ],
-            createdAt: new Date(),
-            diagnosticResult: null,
-            status: 'active'
-        });
-        console.log("Создаем новый диагностический чат для пользователя:", _id);
-        console.log("Формат ответа:", { chat_id: result.insertedId.toString() });
-        
-        await client.close();
-        await new Promise(resolve => setTimeout(resolve, 300));
-        res.status(201).json({ 
-            chat_id: result.insertedId.toString() 
-        });
-    } catch (error) {
-        console.error('Ошибка при создании диагностического чата:', error);
-        res.status(500).json({ error: 'Ошибка при создании диагностического чата' });
-    }
-});
-
-// Отправка сообщения в диагностический чат
-router.post('/sendMessage', async (req, res) => {
-    try {
-        const { _id } = req.user;
-        const { chat_id, message } = req.body;
-        
-        if (!chat_id || !message) {
-            return res.status(400).json({ error: 'Требуются chat_id и message' });
-        }
-        
-        // Подключаемся к базе данных
-        const client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        
-        // Получаем текущий чат
-        const db = client.db('DatabaseAi');
-        const chat = await db.collection('diagnosticChats').findOne({ 
-            _id: new ObjectId(chat_id),
-            user_id: _id
-        });
-        
-        if (!chat) {
-            await client.close();
-            return res.status(404).json({ error: 'Чат не найден или у вас нет к нему доступа' });
-        }
-        
-        // Получаем информацию о пользователе для персонализации
-        const user = await db.collection('users').findOne({ _id: new ObjectId(_id) });
-        
-        // Добавляем сообщение пользователя в историю
-        const userMessage = {
-            role: 'user',
-            content: message,
-            timestamp: new Date().toISOString()
-        };
-        
-        chat.messages.push(userMessage);
-        
-        // Формируем сообщения для отправки в GigaChat
-        const formattedMessages = chat.messages.map(msg => {
-            if (msg.role === 'user') {
-                return new HumanMessage(msg.content);
-            } else if (msg.role === 'assistant') {
-                return new AIMessage(msg.content);
-            }
-            return new SystemMessage(msg.content);
-        });
-        
-        // Получаем ответ от GigaChat
-        const aiResponse = await giga.invoke(formattedMessages);
-        
-        // Проверяем наличие JSON-структуры с результатами диагностики
-        let diagnosticResult = null;
-        let nextAction = 'continue_chat';
-        
-        const responseContent = aiResponse.content;
-        const match = responseContent.match(/```([\s\S]*?)```/);
-        
-        if (match) {
-            try {
-                // Извлекаем и парсим JSON из ответа
-                const jsonStr = match[1].replace(/^json\n/, '');
-                const diagnosticData = JSON.parse(jsonStr);
-                
-                if (diagnosticData.diagnosticResult) {
-                    diagnosticResult = diagnosticData.diagnosticResult;
-                    nextAction = diagnosticData.nextAction || 'continue_chat';
-                    
-                    // Обновляем статус чата
-                    if (nextAction !== 'continue_chat') {
-                        chat.status = 'completed';
-                    }
-                }
-            } catch (e) {
-                console.error('Ошибка при парсинге JSON из ответа:', e);
-            }
-        }
-        
-        // Создаем сообщение ассистента
-        const assistantMessage = {
-            role: 'assistant',
-            content: responseContent,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Добавляем сообщение в историю
-        chat.messages.push(assistantMessage);
-        
-        // Обновляем чат в базе данных
-        if (diagnosticResult) {
-            chat.diagnosticResult = diagnosticResult;
-        }
-        
-        await db.collection('diagnosticChats').updateOne(
-            { _id: new ObjectId(chat_id) },
-            { $set: { messages: chat.messages, status: chat.status, diagnosticResult: chat.diagnosticResult } }
-        );
-        
-        // Подготавливаем ответ
-        const response = {
-            message: responseContent,
-            timestamp: assistantMessage.timestamp
-        };
-        
-        // Если есть результаты диагностики, добавляем их в ответ
-        if (diagnosticResult) {
-            response.diagnosticResult = diagnosticResult;
-            response.nextAction = nextAction;
-        }
-        console.log("Обрабатываем сообщение в чате:", chat_id);
-        console.log("Тип ответа от API:", typeof response);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        // Создаем тест, если нужно
-        if (nextAction === 'start_test' && diagnosticResult) {
-            // Создаем тест в базе данных
-            const testResult = await db.collection('initialTests').insertOne({
-                user_id: _id,
-                subject: diagnosticResult.subjectArea,
-                topic: diagnosticResult.topic,
-                difficulty: diagnosticResult.difficulty,
-                createdAt: new Date(),
-                status: 'pending'
-            });
-            
-            // Добавляем ID теста в результаты диагностики
-            response.diagnosticResult.testId = testResult.insertedId.toString();
-            
-            // Обновляем информацию о тесте в чате
-            await db.collection('diagnosticChats').updateOne(
-                { _id: new ObjectId(chat_id) },
-                { $set: { 'diagnosticResult.testId': testResult.insertedId.toString() } }
-            );
-        }
-        
-        await client.close();
-        res.json(response);
-    } catch (error) {
-        console.error('Ошибка при отправке сообщения:', error);
-        res.status(500).json({ error: 'Ошибка при обработке сообщения' });
-    }
-});
 
 // Эндпоинт для структурированной начальной диагностики (одноразовый агент)
 router.post('/diagnostics', async (req, res) => {
     try {
-        const { field, subjects, difficulty } = req.body;
+        const { field, subjects, difficulty, test } = req.body;
 
         // Валидация входных данных
         if (!field || !field.id || !field.name ||
             !subjects || !Array.isArray(subjects) || subjects.length === 0 || subjects.some(s => !s.id || !s.name) ||
-            !difficulty || !difficulty.id || !difficulty.name) {
+            !difficulty || !difficulty.id || !difficulty.name || !test) {
             return res.status(400).json({ error: 'Некорректный формат входных данных. Требуются field, subjects (массив) и difficulty с полями id и name.' });
         }
 
         // Формируем входные данные для LLM
         const subjectNames = subjects.map(s => s.name).join(', ');
-        const userInputContent = `Предметная область: ${field.name} (id: ${field.id})\nИнтересующие темы: ${subjectNames}\nУровень сложности: ${difficulty.name} (id: ${difficulty.id})`;
+        const userInputContent = `Предметная область: ${field.name} (id: ${field.id})
+Интересующие темы: ${subjectNames}
+Пройденный тест: ${test}
+Уровень сложности: ${difficulty.name} (id: ${difficulty.id})`;
 
-        // Формируем сообщения для отправки в GigaChat
-        const messages = [
-            new SystemMessage(DIAGNOSTIC_AGENT_PROMPT),
-            new HumanMessage(userInputContent)
-        ];
-
-        // Получаем ответ от GigaChat
-        console.log("Отправка запроса GigaChat для одноразовой диагностики...");
-        const aiResponse = await giga.invoke(messages);
-        const responseContent = aiResponse.content;
-        console.log("Получен ответ от GigaChat:", responseContent);
+        // 1. Instantiate the parser
+        // Define the desired data structure for the parser's instructions.
+        // This helps the LLM generate the correct structure.
+        const parser = new JsonOutputParser();
+        const formatInstructions = "Выходной JSON ответ должен содержать два поля: \"diagnosticResult\" и \"nextAction\".";
+        console.log(formatInstructions);
 
 
-        // Обработка ответа и извлечение JSON
-        let diagnosticResult = null;
-        let parsedJson = null;
-        const match = responseContent.match(/```(?:json)?\n?([\s\S]*?)```/);
+        // 2. Create the prompt template
+        const prompt = ChatPromptTemplate.fromMessages([
+            ["system", DIAGNOSTIC_AGENT_PROMPT],
+            ["human", "{userInput}"]
+        ]);
 
-        try {
-            if (match && match[1]) {
-                // Пытаемся извлечь из блока ```
-                const jsonStr = match[1].trim();
-                console.log("Извлечен JSON из блока ```:", jsonStr);
-                parsedJson = JSON.parse(jsonStr);
-            } else {
-                // Если блока ``` нет, пытаемся парсить весь ответ как JSON
-                console.log("Блок ``` не найден, пытаемся парсить весь ответ...");
-                parsedJson = JSON.parse(responseContent.trim());
-                console.log("Весь ответ успешно распарсен как JSON.");
-            }
+        // 3. Create the chain: prompt | model | parser
+        const chain = prompt.pipe(giga).pipe(parser);
 
-             // Убедимся, что структура соответствует ожиданиям
-            if (parsedJson && parsedJson.diagnosticResult &&
-                typeof parsedJson.diagnosticResult.subjectArea === 'string' &&
-                typeof parsedJson.diagnosticResult.topic === 'string' &&
-                typeof parsedJson.diagnosticResult.difficulty === 'string' &&
-                typeof parsedJson.diagnosticResult.needsInitialTest === 'boolean' &&
-                Array.isArray(parsedJson.diagnosticResult.suggestedTopics)) {
-                diagnosticResult = parsedJson.diagnosticResult;
-                console.log("JSON успешно валидирован:", diagnosticResult);
-            } else {
-                 console.error('Распарсенный JSON имеет неверную структуру или отсутствует поле diagnosticResult:', parsedJson);
-                 throw new Error('Invalid JSON structure in LLM response');
-            }
-
-        } catch (e) {
-            console.error('Ошибка при парсинге JSON из ответа GigaChat:', e, "\nОтвет:", responseContent);
-            return res.status(500).json({ error: 'Ошибка при обработке ответа LLM: не удалось извлечь или распарсить валидный JSON.', rawResponse: responseContent });
-        }
-
+        // 4. Invoke the chain
+        console.log("Отправка запроса GigaChat через Langchain chain...");
+        const parsedJson = await chain.invoke({
+             userInput: userInputContent,
+             format_instructions: formatInstructions
+        });
+        console.log("Получен и распарсен ответ от GigaChat:", parsedJson);
 
         // Возвращаем только diagnosticResult
-        res.status(200).json(diagnosticResult);
+        res.status(200).json(parsedJson);
 
     } catch (error) {
         console.error('Ошибка в эндпоинте /diagnostics:', error);
+         // Log the raw response if available in the error object (might depend on Langchain error structure)
+        if (error.response && error.response.data) {
+            console.error("Raw LLM response on error:", error.response.data);
+        }
         // Проверяем, был ли уже отправлен ответ
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Внутренняя ошибка сервера при выполнении диагностики.' });
+             // Provide a more informative error message if possible
+             const errorMessage = error.message.includes('Invalid JSON structure')
+                ? 'Ошибка при обработке ответа LLM: неверная структура JSON.'
+                : 'Внутренняя ошибка сервера при выполнении диагностики.';
+             const errorDetails = error.message.includes('Invalid JSON structure') ? { parsedResponse: error.cause } : {}; // Assuming the invalid json might be in error.cause
+
+             // Check if 'parsedJson' was defined before trying to include it
+             const responsePayload = { error: errorMessage, ...errorDetails };
+              try {
+                 // Try to include the potentially problematic JSON if it exists and wasn't the cause of the initial throw
+                 if (typeof parsedJson !== 'undefined' && !error.message.includes('Invalid JSON structure')) {
+                     responsePayload.rawResponseAttempt = parsedJson;
+                 }
+             } catch (e) { /* ignore potential reference error */ }
+
+
+            res.status(500).json(responsePayload);
         }
     }
 });
@@ -357,55 +196,6 @@ router.post('/startInitialTest', async (req, res) => {
     } catch (error) {
         console.error('Ошибка при создании теста:', error);
         res.status(500).json({ error: 'Ошибка при создании теста' });
-    }
-});
-
-// Получение информации о чате
-router.get('/:id', async (req, res) => {
-    try {
-        const { _id } = req.user;
-        const { id } = req.params;
-        
-        const client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        
-        const chat = await client.db('DatabaseAi').collection('diagnosticChats').findOne({
-            _id: new ObjectId(id),
-            user_id: _id
-        });
-        
-        await client.close();
-        
-        if (!chat) {
-            return res.status(404).json({ error: 'Чат не найден или у вас нет к нему доступа' });
-        }
-        
-        res.json(chat);
-    } catch (error) {
-        console.error('Ошибка при получении информации о чате:', error);
-        res.status(500).json({ error: 'Ошибка при получении информации о чате' });
-    }
-});
-
-// Получение списка диагностических чатов пользователя
-router.get('/', async (req, res) => {
-    try {
-        const { _id } = req.user;
-        
-        const client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        
-        const chats = await client.db('DatabaseAi').collection('diagnosticChats')
-            .find({ user_id: _id })
-            .sort({ createdAt: -1 })
-            .toArray();
-        
-        await client.close();
-        
-        res.json(chats);
-    } catch (error) {
-        console.error('Ошибка при получении списка чатов:', error);
-        res.status(500).json({ error: 'Ошибка при получении списка чатов' });
     }
 });
 
