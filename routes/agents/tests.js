@@ -1,17 +1,11 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
-const { GigaChat } = require("langchain-gigachat");
+const giga = require('./llm');
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { JsonOutputParser } = require("@langchain/core/output_parsers");
-const { ChatOllama } = require('@langchain/ollama');
 
-// Инициализация GigaChat клиента
-const giga = new GigaChat({
-    credentials: process.env.GIGACHAT_CREDENTIALS,
-    model: 'GigaChat-2',
-    maxTokens: 2000,
-});
+router.use('/', require('./tests/index'));
 
 // System prompt template for generating test questions
 const TEST_GENERATION_TEMPLATE = `
