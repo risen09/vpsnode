@@ -37,11 +37,16 @@ const QuestionSchema = z.object({
  * Zod schema for the entire diagnostic test structure.
  */
 const TestSchema = z.object({
+  user_id: z.string().describe("The user ID of the test."),
   testTitle: z.string().describe("The title of the generated test."),
   subject: z.string().describe("The subject area of the test."),
   topic: z.string().describe("The specific topic covered by the test."),
   difficulty: z.string().describe("The difficulty level of the test (e.g., basic, intermediate, advanced)."),
   questions: z.array(QuestionSchema).describe("An array of question objects."),
+  userAnswers: z.array(z.string()).describe("An array of user answers."),
+  completed: z.boolean().describe("Whether the test has been completed."),
+  score: z.number().nullable().describe("The score of the test."),
+  createdAt: z.date().describe("The date and time the test was created."),
 }).describe("Represents a complete diagnostic test.");
 
 const RequestSchema = z.object({
