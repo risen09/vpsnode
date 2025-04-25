@@ -118,6 +118,7 @@ router.post("/startInitialTest", async (req, res, next) => {
                     ...question,
                     subject,
                     topic,
+                    sub_topic: question.sub_topic || '',
                     difficulty
                 })));
                 console.log(`[API /test] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);

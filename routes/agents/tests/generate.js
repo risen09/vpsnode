@@ -3,7 +3,7 @@ const { StructuredOutputParser } = require("@langchain/core/output_parsers");
 const { RunnableSequence } = require("@langchain/core/runnables");
 const { QuestionSchema } = require("./schemas");
 const { z } = require("zod");
-const { giga } = require("../llm");
+const { giga, gigaMax } = require("../llm");
 
 /**
  * Generates additional questions using the LLM when not enough questions are found in the vector store.
@@ -47,7 +47,7 @@ async function generateQuestions(context, subject, topic, difficulty, count) {
     // Create a runnable sequence
     const chain = RunnableSequence.from([
         promptTemplate,
-        giga,
+        gigaMax,
         parser
     ]);
     
