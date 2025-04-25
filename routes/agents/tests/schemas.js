@@ -27,6 +27,7 @@ const VectorStoreDocumentSchema = z.object({
  * Zod schema for a single multiple-choice question.
  */
 const QuestionSchema = z.object({
+  sub_topic: z.string().describe("The sub-topic of the question."),
   questionText: z.string().describe("The text of the question."),
   options: z.array(z.string()).length(4).describe("An array of 4 possible answer strings."),
   correctOptionIndex: z.number().min(0).max(3).describe("The 0-based index of the correct answer in the options array."),

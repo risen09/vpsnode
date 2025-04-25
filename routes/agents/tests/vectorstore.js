@@ -5,6 +5,7 @@ const { QuestionMetadataSchema, VectorStoreDocumentSchema } = require('./schemas
 const path = require('path');
 const { Document } = require('langchain/document');
 const { MongoClient } = require('mongodb');
+const { GigaChatEmbeddings } = require('langchain-gigachat');
 /**
  * Loads questions from the JSON file, creates embeddings, and initializes the MemoryVectorStore.
  * Should be called once on application startup.
@@ -51,10 +52,11 @@ async function initializeVectorStore() {
         console.log(`[VectorStore] Loaded ${documents.length} documents (${successCount} valid, ${failureCount} skipped).`);
 
         // 2. Initialize Embeddings
-        const embeddings = new OllamaEmbeddings({
-            model: "nomic-embed-text",
+        const embeddings = new GigaChatEmbeddings({
+            credentials: process.env.GIGACHAT_CREDENTIALS,
+            httpsAgent: httpsAgent
         });
-        console.log("[VectorStore] OllamaEmbeddings initialized.");
+        console.log("[VectorStore] GigaChatEmbeddings initialized.");
 
         // 3. Create Vector Store
         vectorStore = await MemoryVectorStore.fromDocuments(documents, embeddings);
