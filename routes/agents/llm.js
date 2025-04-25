@@ -7,6 +7,13 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
 });
 
+const gigaMax = new GigaChat({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    model: 'GigaChat-2-Max',
+    maxTokens: 2000,
+    httpsAgent: httpsAgent
+});
+
 // Инициализация GigaChat клиента
 const giga = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
@@ -19,4 +26,4 @@ const giga = new GigaChat({
 //     model: 'gemma3:1b',
 // })
 
-module.exports = giga
+module.exports = { giga, gigaMax }

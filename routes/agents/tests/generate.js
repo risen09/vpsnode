@@ -1,21 +1,26 @@
-const giga = require("../llm");
-const {
-  ChatPromptTemplate
-} = require("@langchain/core/prompts");
-// Use Zod structure parser
+const { PromptTemplate } = require("@langchain/core/prompts");
 const { StructuredOutputParser } = require("@langchain/core/output_parsers");
-// Assuming schemas.ts is compiled to schemas.js or you are using a bundler/loader
-const { TestSchema } = require("./schemas");
+const { RunnableSequence } = require("@langchain/core/runnables");
+const { QuestionSchema } = require("./schemas");
+const { z } = require("zod");
+const { giga } = require("../llm");
 
 /**
- * System prompt template for the initial test generation agent.
- * @constant
- * @type {string}
+ * Generates additional questions using the LLM when not enough questions are found in the vector store.
+ * @param {string} subject - The subject area
+ * @param {string} topic - The specific topic
+ * @param {string} difficulty - The difficulty level
+ * @param {number} count - Number of questions to generate
+ * @returns {Promise<Array>} - Array of generated questions
  */
-const TEST_GENERATION_TEMPLATE = `
+async function generateQuestions(context, subject, topic, difficulty, count) {
+    console.log(`[LLM] Generating ${count} questions for ${subject}/${topic} (${difficulty})`);
+    
+    // Create a prompt template for generating test questions
+    const promptTemplate = PromptTemplate.fromTemplate(`
 Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
-Твоя задача - создать диагностический тест ({num_questions} вопросов) по заданной теме.
+Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
 Каждый вопрос должен:
 1. Быть с множественным выбором (4 варианта ответа)
 2. Иметь один правильный ответ
@@ -23,6 +28,7 @@ const TEST_GENERATION_TEMPLATE = `
 4. Содержать четкое объяснение правильного ответа.
 
 Формат ответа должен быть строго в виде JSON, соответствующий инструкциям ниже. НЕ ДОБАВЛЯЙ никакого другого текста, приветствий или markdown разметки (например \`\`\`) вокруг JSON.
+Используй escape-символы для символов в LaTeX, например: $\\\\frac$, вместо $\\frac$.
 
 {format_instructions}
 
@@ -31,37 +37,73 @@ const TEST_GENERATION_TEMPLATE = `
 Тема: {topic}
 Уровень сложности: {difficulty}
 
-Создай тест из {num_questions} вопросов.
-`;
+Создай тест из {count} вопросов.
+    
+Контекст: {context}
+    `);
+    
+    const parser = StructuredOutputParser.fromZodSchema(z.array(QuestionSchema))
+    
+    // Create a runnable sequence
+    const chain = RunnableSequence.from([
+        promptTemplate,
+        giga,
+        parser
+    ]);
+    
+    try {
+        // Execute the chain
+        const jsonString = await chain.invoke({
+            context: context,
+            subject: subject,
+            topic: topic,
+            difficulty: difficulty,
+            count: count,
+            format_instructions: parser.getFormatInstructions()
+        });
 
-/**
- * Creates a LangChain prompt template for test generation.
- * @type {ChatPromptTemplate}
- */
-const generatePrompt = ChatPromptTemplate.fromMessages([
-  ["system", TEST_GENERATION_TEMPLATE],
-]);
+        // Validate the entire array with Zod
+        const validatedArray = z.array(QuestionSchema).parse(jsonString);
+        console.log(`[LLM] Successfully generated and validated ${validatedArray.length} questions`);
+        return validatedArray;
+    } catch (error) {
+        console.error("[LLM] Error during question generation:", error);
+        return []; // Return empty array on any error
+    }
+}
 
-/**
- * Creates a LangChain output parser using the Zod schema for the Test structure.
- * This ensures the LLM output matches the desired JSON format defined by TestSchema.
- * @type {StructuredOutputParser<typeof TestSchema>}
- */
-const generateParser = StructuredOutputParser.fromZodSchema(TestSchema);
 
-/**
- * LangChain runnable sequence (chain) for generating the initial test.
- * It combines the prompt, the LLM (giga), and the Zod-based output parser.
- * The output type is inferred from the TestSchema.
- */
-const generateChain = generatePrompt.pipe(giga).pipe(generateParser);
+async function generateTestTitle(subject, topic, difficulty, questions) {
+        const testTitlePrompt = PromptTemplate.fromTemplate(`
+        Сгенерируй название теста для предмета {subject} по теме {topic} на уровне сложности {difficulty}.
 
-module.exports = {
-  generateChain,
-  generateParser,
-  /**
-   * Provides format instructions derived from the Zod schema for the LLM prompt.
-   * @type {string}
-   */
-  generateFormatInstructions: generateParser.getFormatInstructions()
-};
+        Вопросы:
+        {questions}
+
+        {format_instructions}
+        `);
+        
+        const testTitleParser = StructuredOutputParser.fromZodSchema(z.object({
+            testTitle: z.string()
+        }));
+        
+        const testTitleChain = RunnableSequence.from([
+            testTitlePrompt,
+            giga,
+            testTitleParser
+        ]);
+
+        const testTitle = await testTitleChain.invoke({
+            subject,
+            topic,
+            difficulty,
+            questions: questions.map(q => ({
+                questionText: q.questionText,
+            })).join('\n'),
+            format_instructions: testTitleParser.getFormatInstructions()
+        });
+
+        return testTitle;
+}
+
+module.exports = { generateQuestions, generateTestTitle };
