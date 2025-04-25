@@ -4,6 +4,7 @@ const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = re
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { generateQuestions, generateTestTitle } = require("./generate");
 const { MongoClient } = require('mongodb');
+const { ObjectId } = require('mongodb');
 let vectorStore = null;
 
 // Call initialization function
@@ -72,29 +73,33 @@ router.post("/startInitialTest", async (req, res, next) => {
         }
         
         // Extract validated parameters
-        const { subject, topic, difficulty, numQuestions } = validatedParams.data;
+        const { subject, topic, difficulty, numQuestions, grade } = validatedParams.data;
 
-        console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}`);
+        console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}, Grade=${grade}`);
 
-        // Define the metadata filter function
-        const filter = (doc) => {
-            const metadata = doc.metadata;
-            // Case-insensitive comparison
-            return metadata.subject?.toLowerCase() === subject.toLowerCase() &&
-                   metadata.topic?.toLowerCase() === topic.toLowerCase();
+        // Define the ChromaDB where clause for server-side filtering
+        // Note: This assumes case-sensitive matching or that data is stored consistently (e.g., lowercase).
+        // If case-insensitivity is strictly required here, the data ingestion process
+        // should ensure consistent casing for filterable fields.
+        const whereClause = {
+            "$and": [
+                { "subject": { "$eq": subject } },
+                { "topic": { "$eq": topic } },
+                { "grade": { "$eq": grade } }
+            ]
         };
 
-        // Perform similarity search with metadata filtering
-        const query = `${subject} ${topic} ${difficulty}`;
-        console.log(`[API /tests] Performing similarity search with query: "${query}" and filter.`);
+        // Perform similarity search with metadata filtering using the where clause
+        const query = `Предмет: ${subject}, Тема: ${topic}, Уровень сложности: ${difficulty}, Класс: ${grade}`;
+        console.log(`[API /tests] Performing similarity search with query: "${query}" and where clause: ${JSON.stringify(whereClause)}.`);
 
         const results = await vectorStore.similaritySearchWithScore(
             query,
             numQuestions, // Try to retrieve the requested number
-            filter // Apply the metadata filter
+            whereClause // Pass the ChromaDB where clause object
         );
 
-        console.log(`[API /tests] Retrieved ${results.length} questions from vector store.`);
+        console.log(`[API /tests] Retrieved ${results.length} questions from vector store using where clause.`);
         
         // Process retrieved documents with Zod
         const retrievedQuestions = [];
@@ -110,9 +115,11 @@ router.post("/startInitialTest", async (req, res, next) => {
                 
                 // Create full question object
                 const validatedQuestion = QuestionSchema.parse({
+                    grade: validatedMetadata.grade,
+                    sub_topic: validatedMetadata.sub_topic,
                     questionText: validatedMetadata.questionText,
-                    options: validatedMetadata.options,
-                    correctOptionIndex: validatedMetadata.correctOptionIndex,
+                    options: JSON.parse(validatedMetadata.options),
+                    correctOptionIndex: +validatedMetadata.correctOptionIndex,
                     explanation: validatedMetadata.explanation
                 });
                 
@@ -134,7 +141,7 @@ router.post("/startInitialTest", async (req, res, next) => {
         // Generate additional questions if needed
         if (questionsNeeded > 0) {
             console.log(`[API /tests] Need ${questionsNeeded} more questions. Generating with LLM...`);
-            const generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded);
+            const generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded, grade);
 
             try {
                 const client = new MongoClient(process.env.MONGODB_URI);
@@ -146,7 +153,8 @@ router.post("/startInitialTest", async (req, res, next) => {
                     subject,
                     topic,
                     sub_topic: question.sub_topic || '',
-                    difficulty
+                    difficulty,
+                    grade
                 })));
                 console.log(`[API /tests] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);
                 const questionIds = result.insertedIds.map(id => id.toString());
@@ -165,7 +173,9 @@ router.post("/startInitialTest", async (req, res, next) => {
             console.log(`[API /tests] Final test has ${allQuestions.length} questions (${retrievedQuestions.length} retrieved, ${generatedQuestions.length} generated)`);
         }
 
+        console.log(`[API /tests] Generating test title...`);
         const testTitle = await generateTestTitle(subject, topic, difficulty, allQuestions);
+        console.log(`[API /tests] Test title generated: ${testTitle.testTitle}`);
 
         try {
             const client = new MongoClient(process.env.MONGODB_URI);
@@ -177,6 +187,7 @@ router.post("/startInitialTest", async (req, res, next) => {
                 testTitle: testTitle.testTitle,
                 subject,
                 topic,
+                grade,
                 difficulty: difficulty,
                 createdAt: new Date(),
                 questions: allQuestions,
@@ -186,7 +197,6 @@ router.post("/startInitialTest", async (req, res, next) => {
             };
 
             const validatedTest = TestSchema.parse(testDoc);
-            console.log(`[API /tests] Validated test: ${JSON.stringify(validatedTest)}`);
             
             const result = await client.db('DatabaseAi').collection('initialTests').insertOne(validatedTest);
             const testId = result.insertedId.toString();
@@ -200,7 +210,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             res.status(500).json({ error: 'Ошибка при создании теста' });
         }
     } catch (error) {
-        console.error("[API /testss] Error during RAG test generation:", error);
+        console.error("[API /tests] Error during RAG test generation:", error);
         next(error || new Error('An unexpected error occurred during test generation.'));
     }
 });

@@ -1,6 +1,6 @@
 const { ChatOllama } = require("@langchain/ollama");
 const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
-
+const { OllamaEmbeddings } = require("@langchain/ollama");
 const https = require('https');
 
 const httpsAgent = new https.Agent({
@@ -11,6 +11,10 @@ const embeddings = new GigaChatEmbeddings({
     credentials: process.env.GIGACHAT_CREDENTIALS,
     httpsAgent: httpsAgent
 });
+// const embeddings = new OllamaEmbeddings({
+//     model: 'nomic-embed-text',
+//     baseURL: 'http://127.0.0.1:11434'
+// });
 
 const gigaMax = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
