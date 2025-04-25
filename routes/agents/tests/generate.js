@@ -3,7 +3,7 @@ const { StructuredOutputParser } = require("@langchain/core/output_parsers");
 const { RunnableSequence } = require("@langchain/core/runnables");
 const { QuestionSchema } = require("./schemas");
 const { z } = require("zod");
-const { giga, gigaMax } = require("../llm");
+const { giga } = require("../llm");
 
 /**
  * Generates additional questions using the LLM when not enough questions are found in the vector store.
@@ -13,7 +13,7 @@ const { giga, gigaMax } = require("../llm");
  * @param {number} count - Number of questions to generate
  * @returns {Promise<Array>} - Array of generated questions
  */
-async function generateQuestions(context, subject, topic, difficulty, count) {
+async function generateQuestions(context, subject, topic, difficulty, count, grade) {
     console.log(`[LLM] Generating ${count} questions for ${subject}/${topic} (${difficulty})`);
     
     // Create a prompt template for generating test questions
@@ -25,7 +25,8 @@ async function generateQuestions(context, subject, topic, difficulty, count) {
 1. Быть с множественным выбором (4 варианта ответа)
 2. Иметь один правильный ответ
 3. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
-4. Содержать четкое объяснение правильного ответа.
+4. Соответствовать уровню класса ({grade})
+5. Содержать четкое объяснение правильного ответа.
 
 Формат ответа должен быть строго в виде JSON, соответствующий инструкциям ниже. НЕ ДОБАВЛЯЙ никакого другого текста, приветствий или markdown разметки (например \`\`\`) вокруг JSON.
 Используй escape-символы для символов в LaTeX, например: $\\\\frac$, вместо $\\frac$.
@@ -36,7 +37,7 @@ async function generateQuestions(context, subject, topic, difficulty, count) {
 Предмет: {subject}
 Тема: {topic}
 Уровень сложности: {difficulty}
-
+Уровень класса: {grade}
 Создай тест из {count} вопросов.
     
 Контекст: {context}
@@ -59,6 +60,7 @@ async function generateQuestions(context, subject, topic, difficulty, count) {
             topic: topic,
             difficulty: difficulty,
             count: count,
+            grade: grade,
             format_instructions: parser.getFormatInstructions()
         });
 
