@@ -4,7 +4,7 @@ const { OllamaEmbeddings } = require('@langchain/ollama');
 const { QuestionMetadataSchema, VectorStoreDocumentSchema } = require('./schemas');
 const path = require('path');
 const { Document } = require('langchain/document');
-
+const { MongoClient } = require('mongodb');
 /**
  * Loads questions from the JSON file, creates embeddings, and initializes the MemoryVectorStore.
  * Should be called once on application startup.
@@ -12,11 +12,8 @@ const { Document } = require('langchain/document');
 async function initializeVectorStore() {
     try {
         console.log("[VectorStore] Initializing...");
-        // 1. Load Questions from JSON
-        const questionsFilePath = path.resolve(__dirname, '../../../assets/documents/diagnostic_questions.json');
-        console.log(`[VectorStore] Loading questions from ${questionsFilePath}`);
-        const fileContent = await fs.readFile(questionsFilePath, 'utf8');
-        const questionsData = JSON.parse(fileContent);
+        const client = await MongoClient.connect(process.env.MONGODB_URI);
+        const questionsData = await client.db('DatabaseAi').collection('diagnosticQuestions').find({}).toArray();
 
         const documents = [];
         let successCount = 0;

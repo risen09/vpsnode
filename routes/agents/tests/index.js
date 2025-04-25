@@ -108,6 +108,25 @@ router.post("/startInitialTest", async (req, res, next) => {
         if (questionsNeeded > 0) {
             console.log(`[API /test] Need ${questionsNeeded} more questions. Generating with LLM...`);
             const generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded);
+
+            try {
+                const client = new MongoClient(process.env.MONGODB_URI);
+                await client.connect();
+                console.log(`[API /test] Connected to MongoDB: ${process.env.MONGODB_URI}`);
+
+                const result = await client.db('DatabaseAi').collection('diagnosticQuestions').insertMany(generatedQuestions.map(question => ({
+                    ...question,
+                    subject,
+                    topic,
+                    difficulty
+                })));
+                console.log(`[API /test] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);
+                await client.close();
+                console.log(`[API /test] MongoDB connection closed`);
+            } catch (error) {
+                console.error('Ошибка при сохранении диагностических вопросов:', error);
+                res.status(500).json({ error: 'Ошибка при сохранении диагностических вопросов' });
+            }
             
             // Combine retrieved and generated questions
             allQuestions = [...retrievedQuestions, ...generatedQuestions];
