@@ -50,6 +50,7 @@ router.post('/addQuestions', async (req, res) => {
  * @param {string} req.body.subject.required - The subject area.
  * @param {string} req.body.topic.required - The specific topic.
  * @param {string} req.body.difficulty.required - The desired difficulty level.
+ * @param {string} req.body.grade.required - The grade level.
  * @param {number} [req.body.numQuestions=5] - The number of questions (defaults to 5).
  * @returns {object} 200 - A complete test object with metadata and questions.
  * @returns {object} 400 - If required parameters are missing or invalid.
