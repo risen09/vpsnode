@@ -1,6 +1,29 @@
 const { z } = require('zod'); // Use require instead of import
 
 /**
+ * Extended Zod schema for question metadata in the vector store
+ */
+const QuestionMetadataSchema = z.object({
+    subject: z.string(),
+    topic: z.string(),
+    sub_topic: z.string().optional(),
+    difficulty: z.string(),
+    questionText: z.string(),
+    options: z.array(z.string()).length(4),
+    correctOptionIndex: z.number().min(0).max(3),
+    explanation: z.string(),
+    question_id: z.string().or(z.number().transform(n => n.toString())),
+}).passthrough(); // Allow additional fields
+
+/**
+ * Schema for a document to be stored in the vector store
+ */
+const VectorStoreDocumentSchema = z.object({
+    pageContent: z.string(),
+    metadata: QuestionMetadataSchema,
+});
+
+/**
  * Zod schema for a single multiple-choice question.
  */
 const QuestionSchema = z.object({
@@ -21,5 +44,10 @@ const TestSchema = z.object({
   questions: z.array(QuestionSchema).describe("An array of question objects."),
 }).describe("Represents a complete diagnostic test.");
 
-// Export the schemas using module.exports for CommonJS compatibility
-module.exports = { QuestionSchema, TestSchema }; 
+const RequestSchema = z.object({
+    subject: z.string().min(1),
+    topic: z.string().min(1),
+    difficulty: z.string().min(1),
+    numQuestions: z.number().int().positive().default(5)
+});
+module.exports = { QuestionSchema, TestSchema, QuestionMetadataSchema, VectorStoreDocumentSchema, RequestSchema }; 
