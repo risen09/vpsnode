@@ -1,46 +1,50 @@
-const fs = require('fs').promises;
-const { MemoryVectorStore } = require('langchain/vectorstores/memory');
-const { OllamaEmbeddings } = require('@langchain/ollama');
-const { QuestionMetadataSchema, VectorStoreDocumentSchema } = require('./schemas');
-const path = require('path');
+const { embeddings } = require('../llm');
+const { QuestionMetadataSchema } = require('./schemas');
 const { Document } = require('langchain/document');
 const { MongoClient } = require('mongodb');
-const { GigaChatEmbeddings } = require('langchain-gigachat');
-/**
- * Loads questions from the JSON file, creates embeddings, and initializes the MemoryVectorStore.
- * Should be called once on application startup.
- */
-async function initializeVectorStore() {
+const { Chroma } = require('@langchain/community/vectorstores/chroma');
+const { ObjectId } = require('mongodb');
+
+async function addDocumentsToVectorStore(vectorStore, questionIds) {
     try {
-        console.log("[VectorStore] Initializing...");
-        const client = await MongoClient.connect(process.env.MONGODB_URI);
-        const questionsData = await client.db('DatabaseAi').collection('diagnosticQuestions').find({}).toArray();
+        const client = new MongoClient(process.env.MONGODB_URI);
+        await client.connect();
+        console.log("[VectorStore] MongoDB connected successfully.");
+        const questions = await client.db('DatabaseAi').collection('diagnosticQuestions').find({ _id: { $in: questionIds.map(id => new ObjectId(id)) } }).toArray();
+
+        console.log(`[VectorStore] Found ${questions.length} questions in MongoDB.`);
 
         const documents = [];
         let successCount = 0;
         let failureCount = 0;
 
-        for (const questionId in questionsData) {
+        for (const questionId in questions) {
             try {
-                const question = questionsData[questionId];
-                const { questionText, ...metadata } = question;
+                const question = questions[questionId];
+                const { questionText, _id, ...metadata } = question;
 
                 // Use Zod to validate and transform the question data
-                const validatedMetadata = QuestionMetadataSchema.parse({
+                const validatedMetadataInput = {
                     ...metadata,
                     questionText: questionText,
-                    question_id: questionId
-                });
+                    question_id: questionId // Use the actual loop index as string ID
+                };
+                const validatedMetadata = QuestionMetadataSchema.parse(validatedMetadataInput);
+
+                // Prepare metadata specifically for ChromaDB, ensuring compatible types
+                const chromaMetadata = {
+                    ...validatedMetadata,
+                    options: JSON.stringify(validatedMetadata.options), // Convert array to JSON string
+                    correctOptionIndex: validatedMetadata.correctOptionIndex.toString(), // Convert number to string
+                    question_id: validatedMetadata.question_id // Ensure question_id is a string
+                };
 
                 const pageContent = `Вопрос по предмету ${validatedMetadata.subject} по теме ${validatedMetadata.topic} по уровню сложности ${validatedMetadata.difficulty}: ${questionText}`
                 const doc = new Document({
                     pageContent: pageContent,
-                    metadata: validatedMetadata
+                    metadata: chromaMetadata // Use the Chroma-compatible metadata
                 });
 
-                // Final validation of the document structure
-                VectorStoreDocumentSchema.parse(doc);
-                
                 documents.push(doc);
                 successCount++;
             } catch (error) {
@@ -50,17 +54,28 @@ async function initializeVectorStore() {
         }
 
         console.log(`[VectorStore] Loaded ${documents.length} documents (${successCount} valid, ${failureCount} skipped).`);
+        await vectorStore.addDocuments(documents);
+        console.log("[VectorStore] Documents added to Chroma successfully.");
+        await client.close();
+        console.log("[VectorStore] MongoDB connection closed.");
+        return true;
+    } catch (error) {
+        console.error("[VectorStore] Failed to add documents to Chroma:", error);
+        return false;
+    }
+}
 
-        // 2. Initialize Embeddings
-        const embeddings = new GigaChatEmbeddings({
-            credentials: process.env.GIGACHAT_CREDENTIALS,
-            httpsAgent: httpsAgent
+/**
+ * Loads questions from the JSON file, creates embeddings, and initializes the MemoryVectorStore.
+ * Should be called once on application startup.
+ */
+async function initializeVectorStore() {
+    try {
+        const vectorStore = new Chroma(embeddings, {
+            collectionName: 'diagnosticQuestions',
+            url: 'http://localhost:8000',
         });
-        console.log("[VectorStore] GigaChatEmbeddings initialized.");
-
-        // 3. Create Vector Store
-        vectorStore = await MemoryVectorStore.fromDocuments(documents, embeddings);
-        console.log("[VectorStore] MemoryVectorStore created successfully.");
+        console.log("[VectorStore] Chroma created successfully.");
         return vectorStore;
 
     } catch (error) {
@@ -70,4 +85,4 @@ async function initializeVectorStore() {
     }
 }
 
-module.exports = { initializeVectorStore };
+module.exports = { addDocumentsToVectorStore, initializeVectorStore };

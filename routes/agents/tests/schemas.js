@@ -16,14 +16,6 @@ const QuestionMetadataSchema = z.object({
 }).passthrough(); // Allow additional fields
 
 /**
- * Schema for a document to be stored in the vector store
- */
-const VectorStoreDocumentSchema = z.object({
-    pageContent: z.string(),
-    metadata: QuestionMetadataSchema,
-});
-
-/**
  * Zod schema for a single multiple-choice question.
  */
 const QuestionSchema = z.object({
@@ -56,4 +48,4 @@ const RequestSchema = z.object({
     difficulty: z.string().min(1),
     numQuestions: z.number().int().positive().default(5)
 });
-module.exports = { QuestionSchema, TestSchema, QuestionMetadataSchema, VectorStoreDocumentSchema, RequestSchema }; 
+module.exports = { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema }; 
