@@ -21,25 +21,25 @@ async function addDocumentsToVectorStore(vectorStore, questionIds) {
         for (const questionId in questions) {
             try {
                 const question = questions[questionId];
-                const { questionText, _id, ...metadata } = question;
 
                 // Use Zod to validate and transform the question data
                 const validatedMetadataInput = {
-                    ...metadata,
-                    questionText: questionText,
+                    ...question,
                     question_id: questionId // Use the actual loop index as string ID
                 };
-                const validatedMetadata = QuestionMetadataSchema.parse(validatedMetadataInput);
 
                 // Prepare metadata specifically for ChromaDB, ensuring compatible types
                 const chromaMetadata = {
-                    ...validatedMetadata,
-                    options: JSON.stringify(validatedMetadata.options), // Convert array to JSON string
-                    correctOptionIndex: validatedMetadata.correctOptionIndex.toString(), // Convert number to string
-                    question_id: validatedMetadata.question_id // Ensure question_id is a string
+                    ...validatedMetadataInput,
+                    options: JSON.stringify(validatedMetadataInput.options), // Convert array to JSON string
+                    correctOptionIndex: validatedMetadataInput.correctOptionIndex.toString(), // Convert number to string
+                    question_id: validatedMetadataInput.question_id
                 };
+                
+                // Validate the metadata
+                QuestionMetadataSchema.parse(chromaMetadata);
 
-                const pageContent = `Вопрос по предмету ${validatedMetadata.subject} по теме ${validatedMetadata.topic} по уровню сложности ${validatedMetadata.difficulty}: ${questionText}`
+                const pageContent = `Вопрос по предмету ${question.subject} по теме ${question.topic} по уровню сложности ${question.difficulty}: ${question.questionText}`
                 const doc = new Document({
                     pageContent: pageContent,
                     metadata: chromaMetadata // Use the Chroma-compatible metadata

@@ -24,15 +24,15 @@ const gigaMax = new GigaChat({
 });
 
 // Инициализация GigaChat клиента
-// const giga = new GigaChat({
-//     credentials: process.env.GIGACHAT_CREDENTIALS,
-//     model: 'GigaChat-2',
-//     maxTokens: 2000,
-//     httpsAgent: httpsAgent
-// });
-const giga = new ChatOllama({
-    baseUrl: "http://127.0.0.1:11434",
-    model: 'gemma3:1b',
-})
+const giga = new GigaChat({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    model: 'GigaChat-2',
+    maxTokens: 2000,
+    httpsAgent: httpsAgent
+});
+// const giga = new ChatOllama({
+//     baseUrl: "http://127.0.0.1:11434",
+//     model: 'gemma3:1b',
+// })
 
 module.exports = { giga, gigaMax, embeddings }
