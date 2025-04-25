@@ -1,7 +1,7 @@
 require('dotenv').config(); // Load environment variables
 const router = require('express').Router();
 const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = require("./schemas");
-const { initializeVectorStore } = require("./vectorstore");
+const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { generateQuestions, generateTestTitle } = require("./generate");
 const { MongoClient } = require('mongodb');
 let vectorStore = null;
@@ -9,6 +9,33 @@ let vectorStore = null;
 // Call initialization function
 initializeVectorStore().then(store => {
     vectorStore = store;
+});
+
+/**
+ * POST /addQuestions
+ * Route to add documents to the vector store
+ * Expects JSON body with: questionIds.
+ * @route POST /addQuestions
+ * @group Tests - Operations related to test generation using RAG
+ * @param {object} req.body.required - Request body.
+ * @param {string[]} req.body.questionIds.required - The IDs of the questions to add.
+ * @returns {object} 200 - A message indicating the documents were added successfully.
+ * @returns {object} 500 - If the vector store is not initialized or search fails.
+ */
+router.post('/addQuestions', async (req, res) => {
+    const { questionIds } = req.body;
+    console.log(`[API /tests] Adding ${questionIds.length} questions to vector store.`);
+    try {
+        const success = await addDocumentsToVectorStore(vectorStore, questionIds);
+        if (success) {
+            res.status(200).json({ message: 'Documents added to vector store successfully.' });
+        } else {
+            res.status(500).json({ error: 'Failed to add documents to vector store.' });
+        }
+    } catch (error) {
+        console.error('Ошибка при добавлении документов в векторное хранилище:', error);
+        res.status(500).json({ error: 'Ошибка при добавлении документов в векторное хранилище' });
+    }
 });
 
 /**
@@ -47,7 +74,7 @@ router.post("/startInitialTest", async (req, res, next) => {
         // Extract validated parameters
         const { subject, topic, difficulty, numQuestions } = validatedParams.data;
 
-        console.log(`[API /test] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}`);
+        console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}`);
 
         // Define the metadata filter function
         const filter = (doc) => {
@@ -59,7 +86,7 @@ router.post("/startInitialTest", async (req, res, next) => {
 
         // Perform similarity search with metadata filtering
         const query = `${subject} ${topic} ${difficulty}`;
-        console.log(`[API /test] Performing similarity search with query: "${query}" and filter.`);
+        console.log(`[API /tests] Performing similarity search with query: "${query}" and filter.`);
 
         const results = await vectorStore.similaritySearchWithScore(
             query,
@@ -67,7 +94,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             filter // Apply the metadata filter
         );
 
-        console.log(`[API /test] Retrieved ${results.length} questions from vector store.`);
+        console.log(`[API /tests] Retrieved ${results.length} questions from vector store.`);
         
         // Process retrieved documents with Zod
         const retrievedQuestions = [];
@@ -89,12 +116,12 @@ router.post("/startInitialTest", async (req, res, next) => {
                     explanation: validatedMetadata.explanation
                 });
                 
-                console.log(`[API /test] Retrieved question: SIM [${score}] ${validatedQuestion.questionText}`);
+                console.log(`[API /tests] Retrieved question: SIM [${score}] ${validatedQuestion.questionText}`);
                 
                 // Add source and metadata
                 retrievedQuestions.push(validatedQuestion);
             } catch (error) {
-                console.warn(`[API /test] Retrieved question validation failed:`, error.message);
+                console.warn(`[API /tests] Retrieved question validation failed:`, error.message);
                 // Skip invalid questions
             }
         }
@@ -106,13 +133,13 @@ router.post("/startInitialTest", async (req, res, next) => {
         
         // Generate additional questions if needed
         if (questionsNeeded > 0) {
-            console.log(`[API /test] Need ${questionsNeeded} more questions. Generating with LLM...`);
+            console.log(`[API /tests] Need ${questionsNeeded} more questions. Generating with LLM...`);
             const generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded);
 
             try {
                 const client = new MongoClient(process.env.MONGODB_URI);
                 await client.connect();
-                console.log(`[API /test] Connected to MongoDB: ${process.env.MONGODB_URI}`);
+                console.log(`[API /tests] Connected to MongoDB: ${process.env.MONGODB_URI}`);
 
                 const result = await client.db('DatabaseAi').collection('diagnosticQuestions').insertMany(generatedQuestions.map(question => ({
                     ...question,
@@ -121,9 +148,13 @@ router.post("/startInitialTest", async (req, res, next) => {
                     sub_topic: question.sub_topic || '',
                     difficulty
                 })));
-                console.log(`[API /test] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);
+                console.log(`[API /tests] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);
+                const questionIds = result.insertedIds.map(id => id.toString());
+                await addDocumentsToVectorStore(vectorStore, questionIds);
+                console.log(`[API /tests] ${questionIds.length} diagnostic questions added to vector store.`);
+
                 await client.close();
-                console.log(`[API /test] MongoDB connection closed`);
+                console.log(`[API /tests] MongoDB connection closed`);
             } catch (error) {
                 console.error('Ошибка при сохранении диагностических вопросов:', error);
                 res.status(500).json({ error: 'Ошибка при сохранении диагностических вопросов' });
@@ -131,7 +162,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             
             // Combine retrieved and generated questions
             allQuestions = [...retrievedQuestions, ...generatedQuestions];
-            console.log(`[API /test] Final test has ${allQuestions.length} questions (${retrievedQuestions.length} retrieved, ${generatedQuestions.length} generated)`);
+            console.log(`[API /tests] Final test has ${allQuestions.length} questions (${retrievedQuestions.length} retrieved, ${generatedQuestions.length} generated)`);
         }
 
         const testTitle = await generateTestTitle(subject, topic, difficulty, allQuestions);
@@ -139,7 +170,7 @@ router.post("/startInitialTest", async (req, res, next) => {
         try {
             const client = new MongoClient(process.env.MONGODB_URI);
             await client.connect();
-            console.log(`[API /test] Connected to MongoDB: ${process.env.MONGODB_URI}`);
+            console.log(`[API /tests] Connected to MongoDB: ${process.env.MONGODB_URI}`);
 
             const testDoc = {
                 user_id: _id,
@@ -155,13 +186,13 @@ router.post("/startInitialTest", async (req, res, next) => {
             };
 
             const validatedTest = TestSchema.parse(testDoc);
-            console.log(`[API /test] Validated test: ${JSON.stringify(validatedTest)}`);
+            console.log(`[API /tests] Validated test: ${JSON.stringify(validatedTest)}`);
             
             const result = await client.db('DatabaseAi').collection('initialTests').insertOne(validatedTest);
             const testId = result.insertedId.toString();
-            console.log(`[API /test] Test inserted with ID: ${testId}`);
+            console.log(`[API /tests] Test inserted with ID: ${testId}`);
             await client.close();
-            console.log(`[API /test] MongoDB connection closed`);
+            console.log(`[API /tests] MongoDB connection closed`);
 
             res.status(200).json({ testId });
         } catch (error) {
@@ -169,7 +200,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             res.status(500).json({ error: 'Ошибка при создании теста' });
         }
     } catch (error) {
-        console.error("[API /test] Error during RAG test generation:", error);
+        console.error("[API /testss] Error during RAG test generation:", error);
         next(error || new Error('An unexpected error occurred during test generation.'));
     }
 });
@@ -187,7 +218,7 @@ router.get('/:id', async (req, res) => {
             _id: new ObjectId(id)
         });
 
-        console.log(`[API /test] Test found: ${JSON.stringify(test)}`);
+        console.log(`[API /tests] Test found: ${JSON.stringify(test)}`);
         
         await client.close();
         
@@ -200,7 +231,7 @@ router.get('/:id', async (req, res) => {
             return res.status(403).json({ error: 'Нет доступа к этому тесту' });
         }
         
-        console.log(`[API /test] Test found: ${JSON.stringify(test)}`);
+        console.log(`[API /tests] Test found: ${JSON.stringify(test)}`);
         res.json(test);
     } catch (error) {
         console.error('Ошибка при получении теста:', error);

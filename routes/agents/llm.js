@@ -1,10 +1,15 @@
 const { ChatOllama } = require("@langchain/ollama");
-const { GigaChat } = require("langchain-gigachat");
+const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
 
 const https = require('https');
 
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
+});
+
+const embeddings = new GigaChatEmbeddings({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    httpsAgent: httpsAgent
 });
 
 const gigaMax = new GigaChat({
@@ -15,15 +20,15 @@ const gigaMax = new GigaChat({
 });
 
 // Инициализация GigaChat клиента
-const giga = new GigaChat({
-    credentials: process.env.GIGACHAT_CREDENTIALS,
-    model: 'GigaChat-2',
-    maxTokens: 2000,
-    httpsAgent: httpsAgent
-});
-// const giga = new ChatOllama({
-//     baseUrl: "http://127.0.0.1:11434",
-//     model: 'gemma3:1b',
-// })
+// const giga = new GigaChat({
+//     credentials: process.env.GIGACHAT_CREDENTIALS,
+//     model: 'GigaChat-2',
+//     maxTokens: 2000,
+//     httpsAgent: httpsAgent
+// });
+const giga = new ChatOllama({
+    baseUrl: "http://127.0.0.1:11434",
+    model: 'gemma3:1b',
+})
 
-module.exports = { giga, gigaMax }
+module.exports = { giga, gigaMax, embeddings }
