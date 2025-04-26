@@ -1,5 +1,8 @@
+const { PromptTemplate } = require("@langchain/core/prompts");
 const { StateGraph, END, START } = require("@langchain/langgraph");
+const { ChatOllama } = require("@langchain/ollama");
 const { MongoClient, ObjectId } = require('mongodb');
+const z = require('zod');
 // Assume Track model is available if needed for saving later
 // const Track = require('../../../models/Track'); // Adjust path as needed
 
@@ -153,20 +156,53 @@ async function analyzeFailures(state) {
 
 async function summarizeWeaknesses(state) {
     console.log("--- Node: summarizeWeaknesses ---");
-    const { weakTopics } = state;
-    const summarizedWeaknesses = weakTopics.reduce((acc, { topic, sub_topic }) => {
-        const key = `${topic} / ${sub_topic}`;
-        acc[key] = (acc[key] || 0) + 1;
-        return acc;
-    }, {});
+    const { weakTopics, subject, topic } = state;
+    console.log(`[Graph] Weak topics: ${JSON.stringify(weakTopics)}`);
+    // const summarizedWeaknesses = weakTopics.reduce((acc, { topic, sub_topic }) => {
+    //     const key = `${topic} / ${sub_topic}`;
+    //     acc[key] = (acc[key] || 0) + 1;
+    //     return acc;
+    // }, {});
 
-    // ***** LLM CALL OPPORTUNITY *****
-    // You *could* call an LLM here to get a more nuanced summary.
-    // Input: summarizedWeaknesses object, maybe original questions/answers.
-    // Output: A natural language summary or a more refined list of core weaknesses.
-    // Example: "User struggles significantly with 'Algebra / Solving Equations' (5 errors)
-    //           and shows minor difficulty in 'Geometry / Area Calculation' (1 error)."
-    // For now, we just use the raw counts.
+    const llm = new ChatOllama({
+      model: 'qwen2.5:1.5b',
+      temperature: 1,
+      topP:  0.9,
+      baseUrl: 'http://localhost:11434'
+    }).withStructuredOutput(z.object({
+      summary: z.string().describe("A summary of the weaknesses in natural language.")
+    }));
+
+    const prompt = PromptTemplate.fromTemplate(`
+      Ты - опытный методист, анализирующий результаты диагностического теста ученика по предмету '{subject}', тема '{topic}'.
+
+Ученик допустил ошибки в следующих областях:
+{summarized_weaknesses_string}
+
+Проанализируй эти ошибки. Твоя задача - **кратко сформулировать основные слабые места** ученика, основываясь на частоте и характере ошибок (если это возможно определить из тем). Не просто перечисляй, а дай **суть** его трудностей. Это поможет составить план обучения. Будь дружелюбен и не забывай, что ученик - это ребенок.
+
+Пример входных данных для \`{summarized_weaknesses_string}\`:
+\`\`\`
+Алгебра / Квадратные уравнения: 3,
+Геометрия / Периметр: 1,
+Алгебра / Функции: 1
+\`\`\`
+
+Пример желаемого вывода:
+'Ты плохо понимаешь квадратные уравнения и функции в алгебре. Давай попробуем разобраться, для этого тебе нужно пройти следующие уроки: ...'
+ИЛИ
+'Из пройденного теста я вижу, что ты плохо понимаешь квадратные уравнения и функции в алгебре. Я составил для тебя следующий план обучения: ...'
+
+Твой вывод должен быть **только на русском языке**. Не добавляй никаких вступлений или заключений, только суть слабых мест.
+      `);
+
+    const chain = prompt.pipe(llm);
+
+    const { summary: summarizedWeaknesses } = await chain.invoke({
+      subject: subject,
+      topic: topic,
+      summarized_weaknesses_string: JSON.stringify(weakTopics)
+    });
     console.log("[Graph] Weaknesses summarized:", summarizedWeaknesses);
 
     return { summarizedWeaknesses };
@@ -175,16 +211,12 @@ async function summarizeWeaknesses(state) {
 
 async function findExistingLessons(state) {
   console.log("--- Node: findExistingLessons ---");
-  const { summarizedWeaknesses } = state;
-  const topicsToSearch = Object.keys(summarizedWeaknesses).map(key => {
-      const [topic, sub_topic] = key.split(' / ');
-      return { topic, sub_topic };
-  });
+  const { weakTopics } = state;
 
   const foundLessonIds = [];
   const topicsNeedingLessons = [];
 
-  if (topicsToSearch.length === 0) {
+  if (weakTopics.length === 0) {
       console.log("[Graph] No weaknesses identified, skipping lesson search.");
       return { foundLessonIds, topicsNeedingLessons };
   }
@@ -195,7 +227,7 @@ async function findExistingLessons(state) {
     console.log(`[Graph] Connected to MongoDB for lesson search`);
     const lessonsCollection = client.db('DatabaseAi').collection('lessons'); // Assuming 'lessons' collection
 
-    for (const weakPoint of topicsToSearch) {
+    for (const weakPoint of weakTopics) {
       // Simple search for now, might need more sophisticated matching
       const query = { topic: weakPoint.topic };
        if (weakPoint.sub_topic && weakPoint.sub_topic !== 'general') {
@@ -227,28 +259,75 @@ async function createTrackStructure(state) {
     console.log("--- Node: createTrackStructure ---");
     const { userId, subject, topic, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
 
-    // ***** LLM CALL OPPORTUNITY *****
-    // Call LLM to generate a good track name and description based on weaknesses.
-    // Input: subject, topic, summarizedWeaknesses, topicsNeedingLessons
-    // Output: { name: string, description: string }
-    // Example: LLM generates name "Algebra Tune-Up" and description "Focuses on solving equations and basic functions, identified as areas needing improvement. Note: Additional material needed for polynomial division."
+    const llm = new ChatOllama({
+      model: 'qwen2.5:1.5b',
+      temperature: 1,
+      topP:  0.9,
+      baseUrl: 'http://localhost:11434'
+    }).withStructuredOutput(z.object({
+      name: z.string().describe("A name for the learning track."),
+      description: z.string().describe("A description of the learning track.")
+    }));
 
-    // Mock generation for now:
-    const trackName = `Learning Track for ${subject}: ${topic} - Remediation`;
-    let trackDescription = `Auto-generated track based on test results. Focuses on areas with errors:\n`;
-    trackDescription += Object.entries(summarizedWeaknesses)
-                             .map(([key, count]) => `- ${key} (${count} errors)`)
-                             .join('\n');
-    if (topicsNeedingLessons.length > 0) {
-        trackDescription += `\n\nMissing content for:\n`;
-        trackDescription += topicsNeedingLessons.map(t => `- ${t.topic} / ${t.sub_topic}`).join('\n');
-    }
+    const prompt = PromptTemplate.fromTemplate(`
+Ты помощник, создающий эффективные учебные планы, основанные на индивидуальных потребностях учеников. Основная задача – сформировать привлекательное имя и точное описание учебного плана исходя из предложенных недостатков ученика и тем, требующих внимания.
 
+## Инструкция
+1. Проанализируй предметы {subject}, темы {topic} и обобщенные слабые места ученика {summarizedWeaknesses}. Оцени степень детализации и определись с основными направлениями работы.
+2. Создай яркое и запоминающееся название (\`name\`), которое четко отражает суть учебного плана и мотивирует ученика приступить к обучению.
+3. Напиши подробное описание (\`description\`), акцентируя внимание на областях, требующих особого подхода, и возможном прогрессе после изучения. 
+4. При наличии тем, требующих дополнительных занятий {topicsNeedingLessons}, включи в описание соответствующие заметки.
+5. Обеспечь простоту восприятия и привлекательность текста, используя активные глаголы и позитивные выражения. Будь дружелебен и непредвзят к ученику, ведь он - ребенок. 
+
+## Примеры
+### Пример 1
+Вход:
+\`\`\`
+subject: Математика
+topic: Алгебра
+summarizedWeaknesses: Трудности с решением линейных уравнений и работой с квадратичными функциями
+topicsNeedingLessons: Решение квадратных уравнений
+\`\`\`
+Выход:
+\`\`\`
+name: Алгебраический прорыв
+description: Я заметил, что у тебя есть трудности с решением линейных уравнений и работу с квадратичными функциями. Этот курс направлен на преодоление этих слабых мест и поможет тебе справиться решать их уверенней! Особое внимание уделяется решению квадратных уравнений.
+\`\`\`
+
+### Пример 2
+Вход:
+\`\`\`
+subject: История
+topic: Средневековая Европа
+summarizedWeaknesses: Недостаток знаний о феодальной системе и Крестовых походах
+topicsNeedingLessons: Феодализм
+\`\`\`
+Выход:
+\`\`\`
+name: Путешествие во времена рыцарей и замков
+description: В этом курсе мы с тобой окунемся в изучение одной из интереснейших эпох - средневековой Европы. Мы сосредоточимся на понимании феодализма и истории Крестовых походов.
+\`\`\`
+
+## Критерии качества
+- Название должно быть привлекательным и соответствовать теме.
+- Описание подробно описывает проблемные зоны и обещает прогресс.
+- Текст легок для чтения и стимулирует интерес к изучению.
+- Информация о дополнительных уроках включена аккуратно и понятно.
+    `);
+
+    const chain = prompt.pipe(llm);
+
+    const { name, description } = await chain.invoke({
+      subject: subject,
+      topic: topic,
+      summarizedWeaknesses: summarizedWeaknesses,
+      topicsNeedingLessons: topicsNeedingLessons
+    });
 
     const learningTrack = {
         userId: userId,
-        name: trackName, // Replace with LLM generated name
-        description: trackDescription, // Replace with LLM generated description
+        name: name, // Replace with LLM generated name
+        description: description, // Replace with LLM generated description
         subject: subject,
         topic: topic, // Original test topic, maybe refine later
         lessons: foundLessonIds, // Only add existing lessons for now
