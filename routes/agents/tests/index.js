@@ -1,10 +1,12 @@
 require('dotenv').config(); // Load environment variables
 const router = require('express').Router();
+const z = require("zod");
 const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = require("./schemas");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { app } = require("./workflow"); // Import the LangGraph workflow
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
+const { runDiagnosis } = require("../diagnostics/workflow");
 let vectorStore = null;
 
 // Call initialization function
@@ -402,6 +404,20 @@ router.post('/:id/submit', async (req, res) => {
             return res.status(403).json({ error: 'Нет доступа к этому тесту' });
         }
         
+        // Run the diagnostic workflow
+        console.log(`[API /tests] Running diagnostic workflow for test ${id}...`);
+        const workflowResult = await runDiagnosis(_id, id);
+        console.log(`[API /tests] Diagnostic workflow completed with result: ${JSON.stringify(workflowResult)}`);
+
+        const result = z.object({
+            success: z.boolean(),
+            trackId: z.string().optional()
+        }).parse(workflowResult);
+
+        if (!result.success) {
+            res.status(500).json({ error: result.error });
+        }
+
         // Проверяем ответы и вычисляем результат
         const results = answers.map((answer, index) => {
             const question = test.questions[index];
@@ -441,6 +457,7 @@ router.post('/:id/submit', async (req, res) => {
                     score,
                     assessedLevel,
                     completed: true,
+                    learningTrackId: result.trackId,
                     completedAt: new Date()
                 } 
             }
@@ -454,7 +471,8 @@ router.post('/:id/submit', async (req, res) => {
             score,
             assessedLevel,
             correctAnswers,
-            totalQuestions
+            totalQuestions,
+            learningTrackId: result.trackId
         });
     } catch (error) {
         console.error('Ошибка при отправке ответов:', error);

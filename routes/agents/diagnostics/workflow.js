@@ -28,6 +28,12 @@ const graphState = {
 // --- Nodes (Work Stations) ---
 // Each function is like a different tool or step in fixing the clog.
 
+/**
+ * Loads initial test data (questions, user answers, subject, topic) from database.
+ * Like finding the right pipes and checking the water pressure before starting job.
+ * @param {object} state - The current graph state. Requires `userId` and `testId`.
+ * @returns {Promise<object>} Updated state with `userAnswers`, `testQuestions`, `subject`, `topic`, or `error`.
+ */
 async function loadTestData(state) {
   console.log("--- Node: loadTestData ---");
   const { userId, testId } = state;
@@ -70,6 +76,12 @@ async function loadTestData(state) {
   }
 }
 
+/**
+ * Grades the user's answers against the correct answers from the test questions.
+ * Like checking each pipe joint for leaks, da?
+ * @param {object} state - The current graph state. Requires `userAnswers` and `testQuestions`.
+ * @returns {Promise<object>} Updated state with `gradedResults` array [{ userAnswerIndex, correctOptionIndex, isCorrect }].
+ */
 async function gradeAnswers(state) {
     console.log("--- Node: gradeAnswers ---");
     const { userAnswers, testQuestions } = state;
@@ -119,6 +131,12 @@ async function gradeAnswers(state) {
     return { gradedResults };
 }
 
+/**
+ * Analyzes the graded results to identify topics where the user made mistakes.
+ * Find the cracked pipes, the source of the leak!
+ * @param {object} state - The current graph state. Requires `gradedResults` and `testQuestions`.
+ * @returns {Promise<object>} Updated state with `weakTopics` (Map where key is 'topic/sub_topic', value is { topic, sub_topic, count }).
+ */
 async function analyzeFailures(state) {
   console.log("--- Node: analyzeFailures ---");
   // Now uses gradedResults from the previous step
@@ -164,6 +182,12 @@ async function analyzeFailures(state) {
   return { weakTopics };
 }
 
+/**
+ * Uses LLM to generate a natural language summary of the user's weak topics.
+ * Like explaining to homeowner in simple terms why their basement is flooding.
+ * @param {object} state - The current graph state. Requires `weakTopics` (Map), `subject`, `topic`.
+ * @returns {Promise<object>} Updated state with `summarizedWeaknesses` (string summary).
+ */
 async function summarizeWeaknesses(state) {
     console.log("--- Node: summarizeWeaknesses ---");
     const { weakTopics, subject, topic } = state;
@@ -215,7 +239,12 @@ async function summarizeWeaknesses(state) {
     return { summarizedWeaknesses };
 }
 
-
+/**
+ * Searches the database for existing learning lessons matching the identified weak topics.
+ * Check the van for spare parts before ordering new ones, understand?
+ * @param {object} state - The current graph state. Requires `weakTopics` (Map).
+ * @returns {Promise<object>} Updated state with `foundLessonIds` (array of ObjectIds) and `topicsNeedingLessons` (array of { topic, sub_topic, count }).
+ */
 async function findExistingLessons(state) {
   console.log("--- Node: findExistingLessons ---");
   const { weakTopics } = state;
@@ -261,7 +290,12 @@ async function findExistingLessons(state) {
   return { foundLessonIds, topicsNeedingLessons };
 }
 
-
+/**
+ * Uses LLM to generate a name and description for the new learning track based on weaknesses.
+ * Make it sound fancy for the customer, this learning plan, blyat.
+ * @param {object} state - The current graph state. Requires `userId`, `subject`, `topic`, `foundLessonIds`, `summarizedWeaknesses`, `topicsNeedingLessons`.
+ * @returns {Promise<object>} Updated state with `learningTrack` object ready for saving.
+ */
 async function createTrackStructure(state) {
     console.log("--- Node: createTrackStructure ---");
     const { userId, subject, topic, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
@@ -312,7 +346,7 @@ topicsNeedingLessons: Феодализм
 Выход:
 \`\`\`
 name: Путешествие во времена рыцарей и замков
-description: В этом курсе мы с тобой окунемся в изучение одной из интереснейших эпох - средневековой Европы. Мы сосредоточимся на понимании феодализма и истории Крестовых походов.
+description: В этом курсе мы с тобой окунемся в изучение одной из интереснейших эпох - средневековой Европы. Мы сосредоточимся на понимании феодализма и истории Крестовых походов (это было в Assassin's Creed!).
 \`\`\`
 
 ## Критерии качества
@@ -333,8 +367,8 @@ description: В этом курсе мы с тобой окунемся в из�
 
     const learningTrack = {
         userId: userId,
-        name: name, // Replace with LLM generated name
-        description: description, // Replace with LLM generated description
+        name: name,
+        description: description,
         subject: subject,
         topic: topic, // Original test topic, maybe refine later
         lessons: foundLessonIds, // Only add existing lessons for now
@@ -347,7 +381,12 @@ description: В этом курсе мы с тобой окунемся в из�
     return { learningTrack };
 }
 
-// Conditional Edge Logic: Decide if we need to request new lessons (or just note them)
+/**
+ * Conditional logic to decide if new lessons need to be requested/generated.
+ * Do we have all parts, or must call supplier? This function decides.
+ * @param {object} state - The current graph state. Checks `topicsNeedingLessons` and `error`.
+ * @returns {string} The name of the next node to transition to: "request_new_lessons", "save_track", or "error_handler".
+ */
 function shouldRequestNewLessons(state) {
   console.log("--- Edge: shouldRequestNewLessons ---");
   if (state.error) return "error_handler"; // Go to error state if previous node failed
@@ -355,7 +394,12 @@ function shouldRequestNewLessons(state) {
   return state.topicsNeedingLessons && state.topicsNeedingLessons.length > 0 ? "request_new_lessons" : "save_track";
 }
 
-// Optional Node: In a real system, this might trigger another process. Here, it just logs.
+/**
+ * Placeholder node for requesting or generating new lessons for topics where none exist.
+ * In real system, this calls the lesson factory. Here, is just empty pipe, does nothing.
+ * @param {object} state - The current graph state. Requires `topicsNeedingLessons`.
+ * @returns {Promise<object>} Empty object, does not modify state in this version.
+ */
 async function requestNewLessons(state) {
   console.log("--- Node: requestNewLessons ---");
   const { topicsNeedingLessons } = state;
@@ -372,6 +416,12 @@ async function requestNewLessons(state) {
   return {}; // No state change in this mock version
 }
 
+/**
+ * Saves the generated learning track structure to the database.
+ * File the paperwork, job done (almost).
+ * @param {object} state - The current graph state. Requires `learningTrack`.
+ * @returns {Promise<object>} Updated state with `savedTrackId` (string) or `error`.
+ */
 async function saveTrack(state) {
   console.log("--- Node: saveTrack ---");
   const { learningTrack } = state;
@@ -400,14 +450,18 @@ async function saveTrack(state) {
   }
 }
 
-// Simple error handler node
+/**
+ * Handles errors that occurred during the workflow execution.
+ * Cleans up the mess when pipe bursts. Logs the error.
+ * @param {object} state - The current graph state. Requires `error`.
+ * @returns {Promise<object>} State object with a `finalMessage` indicating failure.
+ */
 async function handleError(state) {
     console.error("--- Node: handleError ---");
     console.error("[Graph] Workflow failed with error:", state.error);
     // You could add logic here to notify admin, update DB status, etc.
     return { finalMessage: `Workflow failed: ${state.error}` }; // Signal failure
 }
-
 
 // --- Graph Definition ---
 // Now we connect the pipes.
@@ -456,9 +510,15 @@ workflow.addEdge("error_handler", END); // End after handling error
 // Compile the graph
 const app = workflow.compile();
 
-console.log("Diagnostic LangGraph workflow compiled, ready to fix leaks!");
+console.log("[Graph] Diagnostic LangGraph workflow compiled, ready to fix leaks!");
 
-// --- Example Usage (Conceptual) ---
+/**
+ * Runs the entire diagnostic workflow graph for a given user and completed test.
+ * This is the main valve, comrade. Turn this to start the whole damn machine.
+ * @param {string} userId - The ObjectId of the user.
+ * @param {string} testId - The ObjectId of the completed initialTest.
+ * @returns {Promise<object>} An object indicating success (`{ success: true, trackId: string }`) or failure (`{ success: false, error: string }`).
+ */
 async function runDiagnosis(userId, testId) {
     const initialState = { userId, testId };
     console.log(`Starting diagnosis for User: ${userId}, Test: ${testId}`);
