@@ -1,5 +1,5 @@
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { StateGraph, END, START } = require("@langchain/langgraph");
+const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
 const { ChatOllama } = require("@langchain/ollama");
 const { MongoClient, ObjectId } = require('mongodb');
 const z = require('zod');
@@ -8,22 +8,50 @@ const z = require('zod');
 
 // --- State Definition ---
 // This is where we keep track of the mess, like plumber's notepad.
-const graphState = {
-  userId: null,
-  testId: null,
-  userAnswers: [], // From initialTests.userAnswers
-  testQuestions: [], // From initialTests.questions
-  subject: null, // Added from loadTestData
-  topic: null,   // Added from loadTestData
-  gradedResults: [], // NEW: Stores the result of grading [{ userAnswerIndex, correctOptionIndex, isCorrect }]
-  weakTopics: [], // [{ topic: string, sub_topic: string }]
-  summarizedWeaknesses: {}, // { 'Topic/SubTopic': count }
-  foundLessonIds: [], // [ObjectId]
-  topicsNeedingLessons: [], // [{ topic: string, sub_topic: string }]
-  learningTrack: null, // Object matching TrackSchema structure
-  savedTrackId: null, // Added for clarity
-  error: null, // If shit hits the fan
-};
+const state = Annotation.Root({
+  userId: Annotation({
+    default: () => null
+  }),
+  testId: Annotation({
+    default: () => null
+  }),
+  userAnswers: Annotation({
+    default: () => []
+  }),
+  testQuestions: Annotation({
+    default: () => []
+  }),
+  subject: Annotation({
+    default: () => null
+  }),
+  topic: Annotation({
+    default: () => null
+  }),
+  gradedResults: Annotation({
+    default: () => []
+  }),
+  weakTopics: Annotation({
+    default: () => []
+  }),
+  summarizedWeaknesses: Annotation({
+    default: () => null
+  }),
+  foundLessonIds: Annotation({
+    default: () => []
+  }),
+  topicsNeedingLessons: Annotation({
+    default: () => []
+  }),
+  learningTrack: Annotation({
+    default: () => null
+  }),
+  savedTrackId: Annotation({
+    default: () => null
+  }),
+  error: Annotation({
+    default: () => null
+  })
+});
 
 // --- Nodes (Work Stations) ---
 // Each function is like a different tool or step in fixing the clog.
@@ -466,9 +494,7 @@ async function handleError(state) {
 // --- Graph Definition ---
 // Now we connect the pipes.
 
-const workflow = new StateGraph({
-  channels: graphState
-});
+const workflow = new StateGraph(state);
 
 // Add nodes
 workflow.addNode("load_test_data", loadTestData);
