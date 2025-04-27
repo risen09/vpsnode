@@ -20,6 +20,7 @@ const QuestionMetadataSchema = z.object({
  * Zod schema for a single multiple-choice question.
  */
 const QuestionSchema = z.object({
+  topic: z.string().describe("The topic of the question."),
   sub_topic: z.string().describe("The sub-topic of the question."),
   grade: z.number().min(1).max(11).describe("The grade level of the question."),
   questionText: z.string().describe("The text of the question."),
