@@ -96,7 +96,7 @@ router.post("/startInitialTest", async (req, res, next) => {
 
         const results = await vectorStore.similaritySearchWithScore(
             query,
-            numQuestions, // Try to retrieve the requested number
+            Math.floor(numQuestions * 0.8), // Try to retrieve the requested number
             whereClause // Pass the ChromaDB where clause object
         );
 
@@ -104,24 +104,21 @@ router.post("/startInitialTest", async (req, res, next) => {
         
         // Process retrieved documents with Zod
         const retrievedQuestions = [];
-        const context = results.map(doc => doc.pageContent).join('\n');
+        const context = results.map(([doc, score]) => doc.metadata.questionText).join('\n');
         for (const [doc, score] of results) {
             // if (score < 0.8) {
             //     continue;
             // }
 
             try {
-                // Parse metadata with Zod
-                const validatedMetadata = QuestionMetadataSchema.parse(doc.metadata);
-                
                 // Create full question object
                 const validatedQuestion = QuestionSchema.parse({
-                    grade: validatedMetadata.grade,
-                    sub_topic: validatedMetadata.sub_topic,
-                    questionText: validatedMetadata.questionText,
-                    options: JSON.parse(validatedMetadata.options),
-                    correctOptionIndex: +validatedMetadata.correctOptionIndex,
-                    explanation: validatedMetadata.explanation
+                    grade: doc.metadata.grade,
+                    sub_topic: doc.metadata.sub_topic,
+                    questionText: doc.metadata.questionText,
+                    options: JSON.parse(doc.metadata.options),
+                    correctOptionIndex: +doc.metadata.correctOptionIndex,
+                    explanation: doc.metadata.explanation
                 });
                 
                 console.log(`[API /tests] Retrieved question: SIM [${score}] ${validatedQuestion.questionText}`);
@@ -158,7 +155,8 @@ router.post("/startInitialTest", async (req, res, next) => {
                     grade
                 })));
                 console.log(`[API /tests] ${generatedQuestions.length} diagnostic questions inserted with IDs: ${result.insertedIds}`);
-                const questionIds = result.insertedIds.map(id => id.toString());
+                console.log(JSON.stringify(result.insertedIds));
+                const questionIds = Object.values(result.insertedIds).map(id => id.toString());
                 await addDocumentsToVectorStore(vectorStore, questionIds);
                 console.log(`[API /tests] ${questionIds.length} diagnostic questions added to vector store.`);
 
@@ -167,6 +165,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             } catch (error) {
                 console.error('Ошибка при сохранении диагностических вопросов:', error);
                 res.status(500).json({ error: 'Ошибка при сохранении диагностических вопросов' });
+                return;
             }
             
             // Combine retrieved and generated questions
