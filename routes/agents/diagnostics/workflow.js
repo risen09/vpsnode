@@ -123,7 +123,7 @@ async function analyzeFailures(state) {
   console.log("--- Node: analyzeFailures ---");
   // Now uses gradedResults from the previous step
   const { gradedResults, testQuestions } = state;
-  const weakTopics = [];
+  const weakTopics = new Map();
 
   // Check gradedResults instead of testResults
   if (!gradedResults || gradedResults.length === 0) {
@@ -138,11 +138,21 @@ async function analyzeFailures(state) {
       const question = testQuestions[index];
       // Check if corresponding question exists and has topic/sub_topic
       if (question && question.topic) {
-        weakTopics.push({
+        const topicKey = `${question.topic}/${question.sub_topic || 'general'}`;
+        const weakness = {
           topic: question.topic,
           sub_topic: question.sub_topic || 'general',
-        });
-        console.log(`[Graph] Found weakness from Q${index}: Topic=${question.topic}, SubTopic=${question.sub_topic || 'general'}`);
+          count: 1
+        }; 
+
+        if (!weakTopics.has(topicKey)) {
+          weakTopics.set(topicKey, weakness);
+          console.log(`[Graph] Found weakness from Q${index}: Topic=${question.topic}, SubTopic=${question.sub_topic || 'general'}`);
+        } else {
+          const existingWeakness = weakTopics.get(topicKey);
+          existingWeakness.count++;
+          console.log(`[Graph] Found weakness from Q${index}: Topic=${question.topic}, SubTopic=${question.sub_topic || 'general'}`);
+        }
       } else {
           // This might happen if question data was missing or grading failed for this index
           console.warn(`[Graph] Skipping weakness analysis for index ${index}: Missing corresponding question data or topic.`);
@@ -157,12 +167,9 @@ async function analyzeFailures(state) {
 async function summarizeWeaknesses(state) {
     console.log("--- Node: summarizeWeaknesses ---");
     const { weakTopics, subject, topic } = state;
-    console.log(`[Graph] Weak topics: ${JSON.stringify(weakTopics)}`);
-    // const summarizedWeaknesses = weakTopics.reduce((acc, { topic, sub_topic }) => {
-    //     const key = `${topic} / ${sub_topic}`;
-    //     acc[key] = (acc[key] || 0) + 1;
-    //     return acc;
-    // }, {});
+    console.log(`[Graph] Weak topics: ${JSON.stringify(Array.from(weakTopics))}`);
+    const summary = Array.from(weakTopics).map(([key, weakness]) => `${key}: ${weakness.count}`).join('\n');
+    console.log(`[Graph] Summary:\n${summary}`);
 
     const llm = new ChatOllama({
       model: 'qwen2.5:1.5b',
@@ -201,7 +208,7 @@ async function summarizeWeaknesses(state) {
     const { summary: summarizedWeaknesses } = await chain.invoke({
       subject: subject,
       topic: topic,
-      summarized_weaknesses_string: JSON.stringify(weakTopics)
+      summarized_weaknesses_string: summary
     });
     console.log("[Graph] Weaknesses summarized:", summarizedWeaknesses);
 
@@ -227,20 +234,20 @@ async function findExistingLessons(state) {
     console.log(`[Graph] Connected to MongoDB for lesson search`);
     const lessonsCollection = client.db('DatabaseAi').collection('lessons'); // Assuming 'lessons' collection
 
-    for (const weakPoint of weakTopics) {
+    for (const [_, weakness] of weakTopics) {
       // Simple search for now, might need more sophisticated matching
-      const query = { topic: weakPoint.topic };
-       if (weakPoint.sub_topic && weakPoint.sub_topic !== 'general') {
-            query.sub_topic = weakPoint.sub_topic;
+      const query = { topic: weakness.topic };
+       if (weakness.sub_topic && weakness.sub_topic !== 'general') {
+            query.sub_topic = weakness.sub_topic;
        }
       const foundLesson = await lessonsCollection.findOne(query, { projection: { _id: 1 } }); // Find one for simplicity
 
       if (foundLesson) {
-        console.log(`[Graph] Found existing lesson for ${weakPoint.topic}/${weakPoint.sub_topic}: ${foundLesson._id}`);
+        console.log(`[Graph] Found existing lesson for ${weakness.topic}/${weakness.sub_topic}: ${foundLesson._id}`);
         foundLessonIds.push(foundLesson._id);
       } else {
-        console.log(`[Graph] No existing lesson found for ${weakPoint.topic}/${weakPoint.sub_topic}`);
-        topicsNeedingLessons.push(weakPoint);
+        console.log(`[Graph] No existing lesson found for ${weakness.topic}/${weakness.sub_topic}`);
+        topicsNeedingLessons.push(weakness);
       }
     }
     await client.close();
