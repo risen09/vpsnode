@@ -138,8 +138,26 @@ router.post("/startInitialTest", async (req, res, next) => {
         
         // Generate additional questions if needed
         if (questionsNeeded > 0) {
+            let generatedQuestions = [];
+            let attempts = 0;
+            const maxAttempts = 3;
             console.log(`[API /tests] Need ${questionsNeeded} more questions. Generating with LLM...`);
-            const generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded, grade);
+            while (attempts < maxAttempts) {
+                try {
+                    console.log(`[API /tests] Attempt ${attempts + 1} of ${maxAttempts}`);
+                    generatedQuestions = await generateQuestions(context, subject, topic, difficulty, questionsNeeded, grade);
+                    console.log(`[API /tests] Generated ${generatedQuestions.length} questions.`);
+                    break;
+                } catch (error) {
+                    attempts++;
+                    console.log(`[API /tests] Error generating questions: ${error.message}`);
+                    if (attempts >= maxAttempts) {
+                        console.log(`[API /tests] Failed to generate questions after ${maxAttempts} attempts. Returning empty array.`);
+                        generatedQuestions = [];
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
 
             try {
                 const client = new MongoClient(process.env.MONGODB_URI);
