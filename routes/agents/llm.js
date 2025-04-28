@@ -19,7 +19,7 @@ const embeddings = new GigaChatEmbeddings({
 const gigaMax = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
     model: 'GigaChat-2-Max',
-    maxTokens: 2000,
+    maxTokens: 10000,
     httpsAgent: httpsAgent
 });
 
@@ -27,7 +27,6 @@ const gigaMax = new GigaChat({
 const giga = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,
     model: 'GigaChat-2',
-    maxTokens: 2000,
     httpsAgent: httpsAgent
 });
 // const giga = new ChatOllama({
