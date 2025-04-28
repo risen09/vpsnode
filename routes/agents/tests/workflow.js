@@ -1,12 +1,10 @@
 /**
  * LangGraph implementation for test generation
  */
-const { RunnableSequence } = require("@langchain/core/runnables");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { QuestionSchema, TestSchema } = require("./schemas");
 const { MongoClient } = require('mongodb');
-const { ObjectId } = require('mongodb');
 const { giga } = require('../llm');
 const { z } = require('zod');
 const { Annotation, START, END, StateGraph, MemorySaver } = require('@langchain/langgraph');
@@ -112,59 +110,65 @@ async function generateBatchQuestions(state) {
     const maxAttempts = 3;
     
     while (attempts < maxAttempts) {
-        attempts++;
-        console.log(`[LangGraph] Generation attempt ${attempts}/${maxAttempts}`);
-        
-        // Call the existing generation function
-        console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
+        try {
 
-        // Create a prompt template for generating test questions
-        const prompt = PromptTemplate.fromTemplate(`
-        Ты - образовательный ассистент, который создает диагностические тесты для учеников.
-
-        Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
-        Каждый вопрос должен:
-        1. Иметь один правильный ответ
-        2. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
-        3. Соответствовать уровню класса ({grade})
-        4. Содержать четкое объяснение правильного ответа.
-
-        Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
-
-        Контекст: {context}
-            `);
+            attempts++;
+            console.log(`[LangGraph] Generation attempt ${attempts}/${maxAttempts}`);
             
+            // Call the existing generation function
+            console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
 
-        const structuredModel = giga.withStructuredOutput(z.array(QuestionSchema));
+            // Create a prompt template for generating test questions
+            const prompt = PromptTemplate.fromTemplate(`
+            Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
-        const chain = prompt.pipe(structuredModel);
+            Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
+            Каждый вопрос должен:
+            1. Иметь один правильный ответ
+            2. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
+            3. Соответствовать уровню класса ({grade})
+            4. Содержать четкое объяснение правильного ответа.
 
-        // Execute the chain
-        const result = await chain.invoke({
-            context: state.questions.map(question => question.questionText).join('\n'),
-            subject: state.input.subject,
-            topic: state.input.topic,
-            difficulty: state.input.difficulty,
-            count: questionsNeeded,
-            grade: state.input.grade,
-        });
+            Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
 
-        // Validate the entire array with Zod
-        const validatedArray = z.array(QuestionSchema).parse(result);
-        console.log(`[LLM] Successfully generated and validated ${validatedArray.length} questions`);
-            
-        // If we got questions, use them
-        if (validatedArray && validatedArray.length > 0) {
-            console.log(`[LangGraph] Successfully generated ${validatedArray.length} questions on attempt ${attempts}`);
+            Контекст: {context}
+                `);
+                
+
+            const questionsSchema = z.object({
+                questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
+            });
+
+            const structuredModel = giga.withStructuredOutput(questionsSchema);
+
+            const chain = prompt.pipe(structuredModel);
+
+            // Execute the chain
+            const result = await chain.invoke({
+                context: state.questions.map(question => question.questionText).join('\n'),
+                subject: state.input.subject,
+                topic: state.input.topic,
+                difficulty: state.input.difficulty,
+                count: questionsNeeded,
+                grade: state.input.grade,
+            });
+                
             return {
-                questions: validatedArray,
-                generatedQuestions: validatedArray,
+                questions: result.questions,
+                generatedQuestions: result.questions,
             };
-        }
+        } catch (error) {
+            console.log(`[LangGraph] Failed to generate questions on attempt ${attempts}`);
+            console.log(error);
 
-        console.log(`[LangGraph] Failed to generate questions on attempt ${attempts}`);
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            if (attempts >= maxAttempts) {
+                console.log(`[LangGraph] Failed to generate questions after ${maxAttempts} attempts`);
+                throw new Error(`Failed to generate questions after ${maxAttempts} attempts`);
+            }
+
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
     }
     
     return {
@@ -302,49 +306,4 @@ workflow.addEdge("createTest", END);
 const checkpointer = new MemorySaver();
 const app = workflow.compile({ checkpointer });
 
-/**
-* Run the test generation workflow
-* @param {Object} params - Input parameters (subject, topic, difficulty, grade, numQuestions, user_id)
-* @param {Object} config - LangGraph configuration object with thread_id
-* @returns {Promise<Object>} - Result with testId and testTitle
-*/
-async function runTestGeneration(params, config) {
-  try {
-    console.log(`[LangGraph] Starting test generation workflow with params:`, params, `and config:`, config);
-    const result = await app.invoke({
-        input: params
-    }, config);
-    
-    console.log(`[LangGraph] Workflow completed:`, result);
-    return {
-        testId: result.testId,
-        testTitle: result.testTitle
-    };
-  } catch (error) {
-    console.error("[LangGraph] Workflow error:", error);
-    throw error;
-  }
-}
-
-/**
-* Resume a potentially failed test generation workflow
-* @param {Object} config - LangGraph configuration object with the thread_id to resume
-* @returns {Promise<Object>} - Result with testId and testTitle
-*/
-async function resumeTestGenerationWorkflow(config) {
-    try {
-        console.log(`[LangGraph] Resuming test generation workflow with config:`, config);
-        const result = await app.invoke(null, config);
-
-        console.log(`[LangGraph] Resumed workflow completed:`, result);
-        return {
-            testId: result.testId,
-            testTitle: result.testTitle
-        };
-    } catch (error) {
-        console.error("[LangGraph] Resumed workflow error:", error);
-        throw error;
-    }
-}
-
-module.exports = { app, runTestGeneration, resumeTestGenerationWorkflow }; 
+module.exports = { app }; 

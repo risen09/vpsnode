@@ -2,7 +2,7 @@ require('dotenv').config(); // Load environment variables
 const router = require('express').Router();
 const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = require("./schemas");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
-const { runTestGeneration } = require("./workflow"); // Import the LangGraph workflow
+const { app } = require("./workflow"); // Import the LangGraph workflow
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
 let vectorStore = null;
@@ -58,6 +58,7 @@ router.post('/addQuestions', async (req, res) => {
  */
 router.post("/startInitialTest", async (req, res, next) => {
     const { _id } = req.user;
+    let threadId = null;
     try {
         if (!vectorStore) {
             return res.status(500).json({ error: 'Vector store is not initialized.' });
@@ -78,6 +79,9 @@ router.post("/startInitialTest", async (req, res, next) => {
 
         console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}, Grade=${grade}`);
 
+        threadId = crypto.randomUUID();
+        console.log(`[API /tests] Generated thread ID: ${threadId}`);
+
         // Run the LangGraph workflow
         try {
             const params = {
@@ -91,11 +95,16 @@ router.post("/startInitialTest", async (req, res, next) => {
 
             const config = {
                 configurable: {
-                    thread_id: _id
+                    thread_id: threadId
                 }
             }
 
-            const result = await runTestGeneration(params, config);
+            console.log(`[API /tests] Starting test generation workflow with params:`, params, `and config:`, config);
+            const result = await app.invoke({
+                input: params
+            }, config);
+            
+            console.log(`[API /tests] Workflow completed:`, result);
             console.log(`[API /tests] Test generation successful with ID: ${result.testId}`);
             res.status(200).json({ testId: result.testId });
         } catch (error) {
@@ -103,10 +112,11 @@ router.post("/startInitialTest", async (req, res, next) => {
             // Fallback to the legacy approach if LangGraph fails
             // console.log("[API /tests] Falling back to legacy approach");
             // await legacyTestGeneration(req, res, next);
-            res.status(500).json({ error: 'Ошибка при генерации теста' });
+            res.status(500).json({ error: 'Ошибка при генерации теста', threadId: threadId, details: error.message });
         }
     } catch (error) {
         console.error("[API /tests] Error during test generation:", error);
+        res.status(500).json({ error: 'Ошибка при генерации теста', threadId: threadId, details: error.message });
         next(error || new Error('An unexpected error occurred during test generation.'));
     }
 });
@@ -114,39 +124,40 @@ router.post("/startInitialTest", async (req, res, next) => {
 /**
  * POST /resumeTest
  * Route to resume a test generation workflow
- * Expects JSON body with: thread_id.
  * @route POST /resumeTest
  * @group Tests - Operations related to test generation using RAG
- * @param {object} req.body.required - Request body.
- * @param {string} req.body.thread_id.required - The thread ID.
  * @returns {object} 200 - A complete test object with metadata and questions.
  * @returns {object} 400 - If required parameters are missing or invalid.
  * @returns {object} 500 - If the vector store is not initialized or search fails.
  */
-router.post("/resumeTestGeneration", async (req, res, next) => {
+router.post("/resumeTestGeneration/:threadId", async (req, res, next) => {
     const { _id } = req.user;
+    const { threadId } = req.params;
     try {
         const config = {
             configurable: {
-                thread_id: _id
+                thread_id: threadId
             }
         }
 
-        const result = await resumeTestGenerationWorkflow(config);
+        console.log(`[API /tests] Resuming test generation workflow with config:`, config);
+        const result = await app.invoke(null, config);
+
+        console.log(`[LangGraph] Resumed workflow completed:`, result);
         res.status(200).json({ testId: result.testId });
     } catch (error) {
-        console.error(`[API /tests] Error during RESUMING LangGraph test generation (Thread ID: ${_id}):`, error);
+        console.error(`[API /tests] Error during RESUMING LangGraph test generation (Thread ID: ${threadId}):`, error);
         // Check if the error indicates the thread doesn't exist or cannot be resumed
         if (error.message.includes("No checkpoint found")) { // Example check, might need adjustment
              res.status(404).json({
                 error: 'Состояние для возобновления не найдено. Возможно, придется начать заново.',
-                threadId: _id,
+                threadId: threadId,
                 details: error.message
             });
         } else {
             res.status(500).json({
                 error: 'Ошибка при возобновлении генерации теста.',
-                threadId: _id,
+                threadId: threadId,
                 details: error.message
             });
         }
@@ -191,9 +202,9 @@ async function legacyTestGeneration(req, res, next) {
         const retrievedQuestions = [];
         const context = results.map(([doc, score]) => doc.metadata.questionText).join('\n');
         for (const [doc, score] of results) {
-            // if (score < 0.8) {
-            //     continue;
-            // }
+            if (score < 0.6) {
+                continue;
+            }
 
             try {
                 // Create full question object
