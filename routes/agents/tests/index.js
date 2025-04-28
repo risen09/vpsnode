@@ -88,15 +88,16 @@ router.post("/startInitialTest", async (req, res, next) => {
                 numQuestions,
                 user_id: _id
             };
-            
+
             const result = await runTestGeneration(params);
             console.log(`[API /tests] Test generation successful with ID: ${result.testId}`);
             res.status(200).json({ testId: result.testId });
         } catch (error) {
             console.error("[API /tests] Error during LangGraph test generation:", error);
             // Fallback to the legacy approach if LangGraph fails
-            console.log("[API /tests] Falling back to legacy approach");
+            // console.log("[API /tests] Falling back to legacy approach");
             // await legacyTestGeneration(req, res, next);
+            res.status(500).json({ error: 'Ошибка при генерации теста' });
         }
     } catch (error) {
         console.error("[API /tests] Error during test generation:", error);
