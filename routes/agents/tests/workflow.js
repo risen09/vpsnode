@@ -300,22 +300,17 @@ workflow.addEdge("createTest", END);
 
 // Compile the graph
 const checkpointer = new MemorySaver();
-const app = workflow.compile({checkpointer});
-const config = {
-    configurable: {
-        thread_id: '1'
-    }
-}
+const app = workflow.compile({ checkpointer });
 
 /**
 * Run the test generation workflow
-* @param {Object} vectorStore - Vector store instance
 * @param {Object} params - Input parameters (subject, topic, difficulty, grade, numQuestions, user_id)
+* @param {Object} config - LangGraph configuration object with thread_id
 * @returns {Promise<Object>} - Result with testId and testTitle
 */
-async function runTestGeneration(params) {
+async function runTestGeneration(params, config) {
   try {
-    console.log(`[LangGraph] Starting test generation workflow with params:`, params);
+    console.log(`[LangGraph] Starting test generation workflow with params:`, params, `and config:`, config);
     const result = await app.invoke({
         input: params
     }, config);
@@ -331,4 +326,25 @@ async function runTestGeneration(params) {
   }
 }
 
-module.exports = { app, runTestGeneration }; 
+/**
+* Resume a potentially failed test generation workflow
+* @param {Object} config - LangGraph configuration object with the thread_id to resume
+* @returns {Promise<Object>} - Result with testId and testTitle
+*/
+async function resumeTestGenerationWorkflow(config) {
+    try {
+        console.log(`[LangGraph] Resuming test generation workflow with config:`, config);
+        const result = await app.invoke(null, config);
+
+        console.log(`[LangGraph] Resumed workflow completed:`, result);
+        return {
+            testId: result.testId,
+            testTitle: result.testTitle
+        };
+    } catch (error) {
+        console.error("[LangGraph] Resumed workflow error:", error);
+        throw error;
+    }
+}
+
+module.exports = { app, runTestGeneration, resumeTestGenerationWorkflow }; 
