@@ -89,7 +89,13 @@ router.post("/startInitialTest", async (req, res, next) => {
                 user_id: _id
             };
 
-            const result = await runTestGeneration(params);
+            const config = {
+                configurable: {
+                    thread_id: _id
+                }
+            }
+
+            const result = await runTestGeneration(params, config);
             console.log(`[API /tests] Test generation successful with ID: ${result.testId}`);
             res.status(200).json({ testId: result.testId });
         } catch (error) {
@@ -104,6 +110,49 @@ router.post("/startInitialTest", async (req, res, next) => {
         next(error || new Error('An unexpected error occurred during test generation.'));
     }
 });
+
+/**
+ * POST /resumeTest
+ * Route to resume a test generation workflow
+ * Expects JSON body with: thread_id.
+ * @route POST /resumeTest
+ * @group Tests - Operations related to test generation using RAG
+ * @param {object} req.body.required - Request body.
+ * @param {string} req.body.thread_id.required - The thread ID.
+ * @returns {object} 200 - A complete test object with metadata and questions.
+ * @returns {object} 400 - If required parameters are missing or invalid.
+ * @returns {object} 500 - If the vector store is not initialized or search fails.
+ */
+router.post("/resumeTestGeneration", async (req, res, next) => {
+    const { _id } = req.user;
+    try {
+        const config = {
+            configurable: {
+                thread_id: _id
+            }
+        }
+
+        const result = await resumeTestGenerationWorkflow(config);
+        res.status(200).json({ testId: result.testId });
+    } catch (error) {
+        console.error(`[API /tests] Error during RESUMING LangGraph test generation (Thread ID: ${_id}):`, error);
+        // Check if the error indicates the thread doesn't exist or cannot be resumed
+        if (error.message.includes("No checkpoint found")) { // Example check, might need adjustment
+             res.status(404).json({
+                error: 'Состояние для возобновления не найдено. Возможно, придется начать заново.',
+                threadId: _id,
+                details: error.message
+            });
+        } else {
+            res.status(500).json({
+                error: 'Ошибка при возобновлении генерации теста.',
+                threadId: _id,
+                details: error.message
+            });
+        }
+    }
+});
+
 
 /**
  * Legacy test generation approach to be used as fallback
