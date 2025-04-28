@@ -2,7 +2,7 @@ require('dotenv').config(); // Load environment variables
 const router = require('express').Router();
 const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = require("./schemas");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
-const { generateQuestions, generateTestTitle } = require("./generate");
+const { runTestGeneration } = require("./workflow"); // Import the LangGraph workflow
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
 let vectorStore = null;
@@ -78,6 +78,41 @@ router.post("/startInitialTest", async (req, res, next) => {
 
         console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}, Grade=${grade}`);
 
+        // Run the LangGraph workflow
+        try {
+            const params = {
+                subject,
+                topic, 
+                difficulty,
+                grade,
+                numQuestions,
+                user_id: _id
+            };
+            
+            const result = await runTestGeneration(params);
+            console.log(`[API /tests] Test generation successful with ID: ${result.testId}`);
+            res.status(200).json({ testId: result.testId });
+        } catch (error) {
+            console.error("[API /tests] Error during LangGraph test generation:", error);
+            // Fallback to the legacy approach if LangGraph fails
+            console.log("[API /tests] Falling back to legacy approach");
+            // await legacyTestGeneration(req, res, next);
+        }
+    } catch (error) {
+        console.error("[API /tests] Error during test generation:", error);
+        next(error || new Error('An unexpected error occurred during test generation.'));
+    }
+});
+
+/**
+ * Legacy test generation approach to be used as fallback
+ */
+async function legacyTestGeneration(req, res, next) {
+    const { _id } = req.user;
+    try {
+        // Extract validated parameters
+        const { subject, topic, difficulty, numQuestions, grade } = RequestSchema.parse(req.body);
+        
         // Define the ChromaDB where clause for server-side filtering
         // Note: This assumes case-sensitive matching or that data is stored consistently (e.g., lowercase).
         // If case-insensitivity is strictly required here, the data ingestion process
@@ -90,7 +125,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             ]
         };
 
-        // Perform similarity search with metadata filtering using the where clause
+        // Perform similarity search with metadata filtering
         const query = `Предмет: ${subject}, Тема: ${topic}, Уровень сложности: ${difficulty}, Класс: ${grade}`;
         console.log(`[API /tests] Performing similarity search with query: "${query}" and where clause: ${JSON.stringify(whereClause)}.`);
 
@@ -100,9 +135,9 @@ router.post("/startInitialTest", async (req, res, next) => {
             whereClause // Pass the ChromaDB where clause object
         );
 
-        console.log(`[API /tests] Retrieved ${results.length} questions from vector store using where clause.`);
+        console.log(`[API /tests] Retrieved ${results.length} questions from vector store.`);
         
-        // Process retrieved documents with Zod
+        // Process retrieved documents
         const retrievedQuestions = [];
         const context = results.map(([doc, score]) => doc.metadata.questionText).join('\n');
         for (const [doc, score] of results) {
@@ -133,7 +168,6 @@ router.post("/startInitialTest", async (req, res, next) => {
         
         // Determine how many additional questions we need
         const questionsNeeded = numQuestions - retrievedQuestions.length;
-        
         let allQuestions = [...retrievedQuestions];
         
         // Generate additional questions if needed
@@ -159,6 +193,7 @@ router.post("/startInitialTest", async (req, res, next) => {
                 }
             }
 
+            // Save generated questions
             try {
                 const client = new MongoClient(process.env.MONGODB_URI);
                 await client.connect();
@@ -191,10 +226,18 @@ router.post("/startInitialTest", async (req, res, next) => {
             console.log(`[API /tests] Final test has ${allQuestions.length} questions (${retrievedQuestions.length} retrieved, ${generatedQuestions.length} generated)`);
         }
 
+        // Generate test title
         console.log(`[API /tests] Generating test title...`);
-        const testTitle = await generateTestTitle(subject, topic, difficulty, allQuestions);
-        console.log(`[API /tests] Test title generated: ${testTitle.testTitle}`);
+        let testTitle;
+        try {
+            const titleResult = await generateTestTitle(subject, topic, difficulty, allQuestions);
+            testTitle = titleResult.testTitle;
+        } catch (error) {
+            console.error("[API /tests] Error generating title, using default:", error);
+            testTitle = `Тест по ${subject}: ${topic} (${difficulty})`;
+        }
 
+        // Save test
         try {
             const client = new MongoClient(process.env.MONGODB_URI);
             await client.connect();
@@ -202,11 +245,11 @@ router.post("/startInitialTest", async (req, res, next) => {
 
             const testDoc = {
                 user_id: _id,
-                testTitle: testTitle.testTitle,
+                testTitle: testTitle,
                 subject,
                 topic,
                 grade,
-                difficulty: difficulty,
+                difficulty,
                 createdAt: new Date(),
                 questions: allQuestions,
                 userAnswers: [],
@@ -219,6 +262,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             const result = await client.db('DatabaseAi').collection('initialTests').insertOne(validatedTest);
             const testId = result.insertedId.toString();
             console.log(`[API /tests] Test inserted with ID: ${testId}`);
+            
             await client.close();
             console.log(`[API /tests] MongoDB connection closed`);
 
@@ -228,10 +272,10 @@ router.post("/startInitialTest", async (req, res, next) => {
             res.status(500).json({ error: 'Ошибка при создании теста' });
         }
     } catch (error) {
-        console.error("[API /tests] Error during RAG test generation:", error);
+        console.error("[API /tests] Error during legacy test generation:", error);
         next(error || new Error('An unexpected error occurred during test generation.'));
     }
-});
+}
 
 // Получение теста по ID
 router.get('/:id', async (req, res) => {
