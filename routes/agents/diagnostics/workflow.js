@@ -1,10 +1,15 @@
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
-const { ChatOllama } = require("@langchain/ollama");
+const { GigaChat } = require("langchain-gigachat");
 const { MongoClient, ObjectId } = require('mongodb');
+const https = require('https');
 const z = require('zod');
 // Assume Track model is available if needed for saving later
 // const Track = require('../../../models/Track'); // Adjust path as needed
+
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
+});
 
 // --- State Definition ---
 // This is where we keep track of the mess, like plumber's notepad.
@@ -223,13 +228,14 @@ async function summarizeWeaknesses(state) {
     const summary = Array.from(weakTopics).map(([key, weakness]) => `${key}: ${weakness.count}`).join('\n');
     console.log(`[Graph] Summary:\n${summary}`);
 
-    const llm = new ChatOllama({
-      model: 'qwen2.5:1.5b',
+    const llm = new GigaChat({
+      model: 'GigaChat-2',
       temperature: 1,
       topP:  0.9,
-      baseUrl: 'http://localhost:11434'
+      credentials: process.env.GIGACHAT_CREDENTIALS,
+      httpsAgent: httpsAgent
     }).withStructuredOutput(z.object({
-      summary: z.string().describe("A summary of the weaknesses in natural language.")
+      summary: z.string().describe("Суть слабых мест ученика. Описание в 1 предложении.")
     }));
 
     const prompt = PromptTemplate.fromTemplate(`
@@ -240,14 +246,10 @@ async function summarizeWeaknesses(state) {
 
 Проанализируй эти ошибки. Твоя задача - **кратко сформулировать основные слабые места** ученика, основываясь на частоте и характере ошибок (если это возможно определить из тем). Не просто перечисляй, а дай **суть** его трудностей. Это поможет составить план обучения. Будь дружелюбен и не забывай, что ученик - это ребенок.
 
-Пример входных данных для \`{summarized_weaknesses_string}\`:
-\`\`\`
-Алгебра / Квадратные уравнения: 3,
-Геометрия / Периметр: 1,
-Алгебра / Функции: 1
-\`\`\`
+ПРИМЕР:
+{{ "subject": "Алгебра", "topic": "Квадратные уравнения и функции", "summarized_weaknesses_string": "Алгебра / Квадратные уравнения: 3, Геометрия / Периметр: 1, Алгебра / Функции: 1" }}
 
-Пример желаемого вывода:
+ОТВЕТ:
 'Ты плохо понимаешь квадратные уравнения и функции в алгебре. Давай попробуем разобраться, для этого тебе нужно пройти следующие уроки: ...'
 ИЛИ
 'Из пройденного теста я вижу, что ты плохо понимаешь квадратные уравнения и функции в алгебре. Я составил для тебя следующий план обучения: ...'
@@ -328,14 +330,15 @@ async function createTrackStructure(state) {
     console.log("--- Node: createTrackStructure ---");
     const { userId, subject, topic, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
 
-    const llm = new ChatOllama({
-      model: 'qwen2.5:1.5b',
+    const llm = new GigaChat({
+      model: 'GigaChat-2',
       temperature: 1,
       topP:  0.9,
-      baseUrl: 'http://localhost:11434'
+      credentials: process.env.GIGACHAT_CREDENTIALS,
+      httpsAgent: httpsAgent
     }).withStructuredOutput(z.object({
-      name: z.string().describe("A name for the learning track."),
-      description: z.string().describe("A description of the learning track.")
+      name: z.string().describe("Яркое и запоминающееся название учебного плана."),
+      description: z.string().describe("Подробное описание учебного плана.")
     }));
 
     const prompt = PromptTemplate.fromTemplate(`
@@ -348,34 +351,13 @@ async function createTrackStructure(state) {
 4. При наличии тем, требующих дополнительных занятий {topicsNeedingLessons}, включи в описание соответствующие заметки.
 5. Обеспечь простоту восприятия и привлекательность текста, используя активные глаголы и позитивные выражения. Будь дружелебен и непредвзят к ученику, ведь он - ребенок. 
 
-## Примеры
-### Пример 1
-Вход:
-\`\`\`
-subject: Математика
-topic: Алгебра
-summarizedWeaknesses: Трудности с решением линейных уравнений и работой с квадратичными функциями
-topicsNeedingLessons: Решение квадратных уравнений
-\`\`\`
-Выход:
-\`\`\`
-name: Алгебраический прорыв
-description: Я заметил, что у тебя есть трудности с решением линейных уравнений и работу с квадратичными функциями. Этот курс направлен на преодоление этих слабых мест и поможет тебе справиться решать их уверенней! Особое внимание уделяется решению квадратных уравнений.
-\`\`\`
+ПРИМЕР
+JSON-вход: {{ "subject": "Математика", "topic": "Алгебра", "summarizedWeaknesses": "Трудности с решением линейных уравнений и работой с квадратичными функциями", "topicsNeedingLessons": "Решение квадратных уравнений" }}
+JSON-выход: {{ "name": "Алгебраический прорыв", "description": "Я заметил, что у тебя есть трудности с решением линейных уравнений и работу с квадратичными функциями. Этот курс направлен на преодоление этих слабых мест и поможет тебе справиться решать их уверенней! Особое внимание уделяется решению квадратных уравнений." }}
 
-### Пример 2
-Вход:
-\`\`\`
-subject: История
-topic: Средневековая Европа
-summarizedWeaknesses: Недостаток знаний о феодальной системе и Крестовых походах
-topicsNeedingLessons: Феодализм
-\`\`\`
-Выход:
-\`\`\`
-name: Путешествие во времена рыцарей и замков
-description: В этом курсе мы с тобой окунемся в изучение одной из интереснейших эпох - средневековой Европы. Мы сосредоточимся на понимании феодализма и истории Крестовых походов (это было в Assassin's Creed!).
-\`\`\`
+ПРИМЕР
+JSON-вход: {{ "subject": "История", "topic": "Средневековая Европа", "summarizedWeaknesses": "Недостаток знаний о феодальной системе и Крестовых походах", "topicsNeedingLessons": "Феодализм" }}
+JSON-выход: {{ "name": "Путешествие во времена рыцарей и замков", "description": "В этом курсе мы с тобой окунемся в изучение одной из интереснейших эпох - средневековой Европы. Мы сосредоточимся на понимании феодализма и истории Крестовых походов (это было в Assassin's Creed!)." }}
 
 ## Критерии качества
 - Название должно быть привлекательным и соответствовать теме.
