@@ -1,8 +1,7 @@
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { Annotation, StateGraph, END, START, MemorySaver } = require("@langchain/langgraph");
-const { ChatOllama, OllamaEmbeddings } = require("@langchain/ollama");
-const { GigaChat } = require("langchain-gigachat");
+const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
 const { formatDocumentsAsString } = require("langchain/util/document");
 const { z } = require("zod");
 const https = require("https");
@@ -12,8 +11,9 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false,
 });
 
-const vectorStore = new Chroma(new OllamaEmbeddings({
-    model: "nomic-embed-text",
+const vectorStore = new Chroma(new GigaChatEmbeddings({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    httpsAgent,
 }), {
     collectionName: "textbooks",
     url: "http://localhost:8000",
@@ -60,7 +60,7 @@ const LessonStructureSchema = z.object({
     sections: z.array(LessonSectionSchema).describe("Разделы урока"),
 })
 
-// --- Node Functions (Placeholders) ---
+// --- Node Functions---
 
 /**
  * Performs RAG search based on subject, topic, grade.
@@ -88,23 +88,15 @@ const retrieve = async (state) => {
 const generateStructureNode = async (state) => {
     console.log(`[LangGraph] Generating lesson structure node`);
 
-    const llm = new ChatOllama({
-        model: "qwen2.5:3b-instruct-q4_K_S",
-        baseUrl: "http://localhost:11434",
+    const llm = new GigaChat({
+        model: "GigaChat-2",
         temperature: 1,
+        maxTokens: 5000,
         topP: 0.3,
-        maxTokens: 5000
-    });
-
-    // const llm = new GigaChat({
-    //     model: "GigaChat-2",
-    //     temperature: 1,
-    //     maxTokens: 5000,
-    //     topP: 0.3,
-    //     credentials: process.env.GIGACHAT_CREDENTIALS,
-    //     scope: 'GIGACHAT_API_PERS',
-    //     httpsAgent,
-    // })
+        credentials: process.env.GIGACHAT_CREDENTIALS,
+        scope: 'GIGACHAT_API_PERS',
+        httpsAgent,
+    })
     
     const prompt = PromptTemplate.fromTemplate(`
 Ты – помощник преподавателя, создающий структуру уроков по различным темам школьных дисциплин. Тебе предоставляется учебный материал по конкретной теме {topic} определенного предмета {subject} для {grade} класса, на основе которого нужно разработать структуру урока.
@@ -170,23 +162,15 @@ const generateLessonNode = async (state) => {
         content: z.string().describe("Текст урока"),
     })
 
-    const llm = new ChatOllama({
-        model: "qwen2.5:3b-instruct-q4_K_S",
-        baseUrl: "http://localhost:11434",
+    const llm = new GigaChat({
+        model: "GigaChat-2",
         temperature: 0.2,
+        maxTokens: 5000,
         topP: 0.3,
-        maxTokens: 5000
-    });
-    
-    // const llm = new GigaChat({
-    //     model: "GigaChat-2",
-    //     temperature: 0.2,
-    //     maxTokens: 5000,
-    //     topP: 0.3,
-    //     credentials: process.env.GIGACHAT_CREDENTIALS,
-    //     scope: 'GIGACHAT_API_PERS',
-    //     httpsAgent,
-    // })
+        credentials: process.env.GIGACHAT_CREDENTIALS,
+        scope: 'GIGACHAT_API_PERS',
+        httpsAgent,
+    })
 
     const prompt = PromptTemplate.fromTemplate(`
 Ты – опытный учитель, создающий подробный урок для {grade} класса по предмету {subject} на тему "{topic}".
