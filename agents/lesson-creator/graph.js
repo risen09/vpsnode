@@ -163,10 +163,9 @@ const generateLessonNode = async (state) => {
     })
 
     const llm = new GigaChat({
-        model: "GigaChat-2",
+        model: "GigaChat-2-Pro",
         temperature: 0.2,
         maxTokens: 5000,
-        topP: 0.3,
         credentials: process.env.GIGACHAT_CREDENTIALS,
         scope: 'GIGACHAT_API_PERS',
         httpsAgent,
@@ -300,7 +299,7 @@ const decideNextStepAfterGeneration = (state) => {
             console.log(`   Quality Check FAILED after ${MAX_RETRIES + 1} attempts. Ending graph with failure.`);
             // Optionally, save the failed state or log it more permanently here
             console.error("Lesson generation failed permanently:", { state, issues });
-            return END; // Give up after max retries
+            throw new Error("Lesson generation failed permanently");
         }
     }
 };
@@ -358,8 +357,6 @@ const graph = new StateGraph(AgentState)
         {
             "save_lesson": "save_lesson", // If quality passes
             "handle_generation_failure": "handle_generation_failure", // If quality fails and retries remain
-            // Use the END import directly as the key for the final failure case
-            [END]: END // If quality fails and no retries left
         }
     )
     // Add edge to loop back for retry
