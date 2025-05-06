@@ -17,6 +17,8 @@ app.use('/api/progress-analyzer', authenticate, require('./routes/agents/progres
 app.use('/api/initial-diagnostics', require('./routes/agents/initial-diagnostics'));
 // Добавляем маршрут для работы с тестами
 app.use('/api/tests', authenticate, require('./routes/agents/tests'));
+// Добавляем маршрут для работы с уроками
+app.use('/api/lessons', require('./routes/lessons/index'));
 
 const SECRET = process.env.JWT_SECRET || 'ваш_резервный_секрет';
 const MONGODB_URI = process.env.MONGODB_URI;
