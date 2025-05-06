@@ -1,10 +1,15 @@
 const { DirectoryLoader } = require("langchain/document_loaders/fs/directory");
 const { PDFLoader } = require('@langchain/community/document_loaders/fs/pdf')
-const { OllamaEmbeddings } = require('@langchain/ollama');
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { RecursiveCharacterTextSplitter } = require("@langchain/textsplitters");
+const { GigaChatEmbeddings } = require("langchain-gigachat");
+const https = require("https");
 
-async function main() {
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false,
+});
+
+const main = async () => {
   const directoryLoader = new DirectoryLoader('../assets/documents/algebra', {
     ".pdf": (filePath) => new PDFLoader(filePath, { splitPages: false })
   })
@@ -29,8 +34,9 @@ async function main() {
     }
   }));
 
-  const embeddings = new OllamaEmbeddings({
-    model: "nomic-embed-text",
+  const embeddings = new GigaChatEmbeddings({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    httpsAgent,
   })
 
   await Chroma.fromDocuments(cleanedChunks, embeddings, {
