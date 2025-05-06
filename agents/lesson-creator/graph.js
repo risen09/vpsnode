@@ -1,7 +1,6 @@
-require("dotenv").config();
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { Annotation, StateGraph, END, START } = require("@langchain/langgraph");
+const { Annotation, StateGraph, END, START, MemorySaver } = require("@langchain/langgraph");
 const { ChatOllama, OllamaEmbeddings } = require("@langchain/ollama");
 const { GigaChat } = require("langchain-gigachat");
 const { formatDocumentsAsString } = require("langchain/util/document");
@@ -384,22 +383,9 @@ const graph = new StateGraph(AgentState)
     .addEdge("save_lesson", END); // After saving, end the graph
 
 // Compile the graph
-const app = graph.compile();
+const checkpointer = new MemorySaver();
+const app = graph.compile({ checkpointer });
 
-const main = async () => {
-    try {
-        const result = await app.invoke({
-            subject: "алгебра",
-            topic: "рациональные числа",
-            grade: "8"
-        })
-        console.log(`[LangGraph] Lesson Creator Agent Lesson Result: ${result.lessonId}`)
-    } catch (error) {
-        console.error("Error in main:", error);
-    }
-}
-
-main()
 console.log("[LangGraph] Lesson Creator Agent Graph Compiled!");
 
 // Use module.exports for CommonJS environments

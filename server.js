@@ -7,6 +7,7 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/api/lesson-creator', authenticate, require('./routes/agents/lesson-creator'));
 app.use('/api/experts', authenticate, require('./routes/agents/subject-expert'));
 app.use('/api/homework', authenticate, require('./routes/agents/homework-helper'));
 app.use('/api/study-plans', authenticate, require('./routes/agents/study-plan'));
