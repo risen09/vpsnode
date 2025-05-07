@@ -1,10 +1,12 @@
 require('dotenv').config(); // Load environment variables
 const router = require('express').Router();
+const z = require("zod");
 const { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema } = require("./schemas");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { app } = require("./workflow"); // Import the LangGraph workflow
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
+const { runDiagnosis, graph } = require("../diagnostics/workflow");
 let vectorStore = null;
 
 // Call initialization function
@@ -402,6 +404,20 @@ router.post('/:id/submit', async (req, res) => {
             return res.status(403).json({ error: 'Нет доступа к этому тесту' });
         }
         
+        // Run the diagnostic workflow
+        console.log(`[API /tests] Running diagnostic workflow for test ${id}...`);
+        const workflowResult = await runDiagnosis(_id, id);
+        console.log(`[API /tests] Diagnostic workflow completed with result: ${JSON.stringify(workflowResult)}`);
+
+        const result = z.object({
+            success: z.boolean(),
+            trackId: z.string().optional()
+        }).parse(workflowResult);
+
+        if (!result.success) {
+            res.status(500).json({ error: result.error });
+        }
+
         // Проверяем ответы и вычисляем результат
         const results = answers.map((answer, index) => {
             const question = test.questions[index];
@@ -441,6 +457,7 @@ router.post('/:id/submit', async (req, res) => {
                     score,
                     assessedLevel,
                     completed: true,
+                    learningTrackId: result.trackId,
                     completedAt: new Date()
                 } 
             }
@@ -454,11 +471,81 @@ router.post('/:id/submit', async (req, res) => {
             score,
             assessedLevel,
             correctAnswers,
-            totalQuestions
+            totalQuestions,
+            learningTrackId: result.trackId
         });
     } catch (error) {
         console.error('Ошибка при отправке ответов:', error);
         res.status(500).json({ error: 'Ошибка при обработке ответов' });
+    }
+});
+
+router.post('/:id/submit-stream', async (req, res) => {
+
+        // Set SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no'); // Recommended for Nginx/Apache proxies
+
+
+
+  // Optional: Send an initial comment to keep connection open
+  res.write(': Connected\n\n');
+
+  // Handle client disconnection
+  req.on('close', () => {
+    console.log('Client disconnected');
+    // You might need logic here to signal the graph execution to stop if possible
+    res.end();
+  });
+
+  console.log('Starting graph execution stream...');
+
+    try {
+        const { _id } = req.user;
+        const { id } = req.params;
+        const { answers } = req.body;
+        
+        if (!answers || !Array.isArray(answers)) {
+            return res.status(400).json({ error: 'Необходимо предоставить ответы в виде массива' });
+        }
+
+        const client = new MongoClient(process.env.MONGODB_URI);
+        await client.connect();
+        
+        // Получаем тест
+        const test = await client.db('DatabaseAi').collection('initialTests').findOne({
+            _id: new ObjectId(id)
+        });
+        
+        if (!test) {
+            await client.close();
+            return res.status(404).json({ error: 'Тест не найден' });
+        }
+        
+        // Проверка прав доступа
+        if (test.user_id !== _id) {
+            await client.close();
+            return res.status(403).json({ error: 'Нет доступа к этому тесту' });
+        }
+        
+        // Run the diagnostic workflow
+        console.log(`[API /tests] Running diagnostic workflow for test ${id}...`);
+        
+        const stream = await graph.stream({userId: _id, testId: id}, { streamMode: 'updates'});
+
+        for await (const update of stream) {
+            console.log(`[API /tests] Diagnostic workflow update: ${JSON.stringify(update)}`);
+            res.write(`data: ${JSON.stringify(update)}\n\n`);
+        }
+
+        res.write(': End of stream\n\n');
+        res.end();
+    } catch (error) {
+        console.error('Ошибка при отправке ответов:', error);
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.end();
     }
 });
 
