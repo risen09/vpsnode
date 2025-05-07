@@ -1,0 +1,37 @@
+const { ChatOllama } = require("@langchain/ollama");
+const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
+const { OllamaEmbeddings } = require("@langchain/ollama");
+const https = require('https');
+
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
+});
+
+const embeddings = new GigaChatEmbeddings({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    httpsAgent: httpsAgent
+});
+// const embeddings = new OllamaEmbeddings({
+//     model: 'nomic-embed-text',
+//     baseURL: 'http://127.0.0.1:11434'
+// });
+
+const gigaMax = new GigaChat({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    model: 'GigaChat-2-Max',
+    maxTokens: 10000,
+    httpsAgent: httpsAgent
+});
+
+// Инициализация GigaChat клиента
+const giga = new GigaChat({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    model: 'GigaChat-2',
+    httpsAgent: httpsAgent
+});
+// const giga = new ChatOllama({
+//     baseUrl: "http://127.0.0.1:11434",
+//     model: 'gemma3:1b',
+// })
+
+module.exports = { giga, gigaMax, embeddings }
