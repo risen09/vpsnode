@@ -9,11 +9,11 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@langchain/community": "^0.3.40",
-    "@langchain/core": "^0.3.44",
-    "@langchain/langgraph": "^0.2.65",
+    "@langchain/community": "^0.3.42",
+    "@langchain/core": "^0.3.51",
+    "@langchain/langgraph": "^0.2.67",
     "@langchain/ollama": "^0.2.0",
-    "chromadb": "^2.3.0",
+    "chromadb": "^2.4.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
