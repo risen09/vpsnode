@@ -3,7 +3,7 @@ const { GigaChat } = require("langchain-gigachat");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
 const router = require('express').Router();
 const { ObjectId } = require('mongodb');
-const Track = require('../../models/Track');
+const Track = require('../../../models/Track');
 
 const giga = new GigaChat({
     credentials: process.env.GIGACHAT_CREDENTIALS,

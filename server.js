@@ -2,120 +2,36 @@ const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const { authenticate, basicAuth } = require('./middlewares/authenticate');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/api/lesson-creator', authenticate, require('./routes/agents/lesson-creator'));
-app.use('/api/experts', authenticate, require('./routes/agents/subject-expert'));
-app.use('/api/homework', authenticate, require('./routes/agents/homework-helper'));
-app.use('/api/study-plans', authenticate, require('./routes/agents/study-plan'));
-app.use('/api/track-assistants', authenticate, require('./routes/agents/track-assistant'));
-app.use('/api/progress-analyzer', authenticate, require('./routes/agents/progress-analyzer'));
+
+// v1 API
+// Добавляем маршруты для агентов
+app.use('/api/lesson-creator', authenticate, require('./routes/v1/agents/lesson-creator'));
+app.use('/api/experts', authenticate, require('./routes/v1/agents/subject-expert'));
+app.use('/api/homework', authenticate, require('./routes/v1/agents/homework-helper'));
+app.use('/api/study-plans', authenticate, require('./routes/v1/agents/study-plan'));
+app.use('/api/track-assistants', authenticate, require('./routes/v1/agents/track-assistant'));
+app.use('/api/progress-analyzer', authenticate, require('./routes/v1/agents/progress-analyzer'));
 // Добавляем маршрут для начальной диагностики
-app.use('/api/initial-diagnostics', require('./routes/agents/initial-diagnostics'));
+app.use('/api/initial-diagnostics', require('./routes/v1/agents/initial-diagnostics'));
 // Добавляем маршрут для работы с тестами
-app.use('/api/tests', authenticate, require('./routes/agents/tests/index'));
+app.use('/api/tests', authenticate, require('./routes/v1/agents/tests/index'));
 // Добавляем маршрут для работы с уроками
-app.use('/api/lessons', require('./routes/lessons/index'));
+app.use('/api/lessons', authenticate, require('./routes/v1/lessons/index'));
+// Добавляем маршрут для работы с пользователями
+app.use('/api/users', authenticate, require('./routes/v1/users'));
+// Добавляем маршрут для работы с одним пользователем
+app.use('/api/user', authenticate, require('./routes/v1/user'));
+// Маршруты для гигачата
+app.use('/api/gigachat', authenticate, require('./routes/v1/gigachat'));
 
 const SECRET = process.env.JWT_SECRET || 'ваш_резервный_секрет';
 const MONGODB_URI = process.env.MONGODB_URI;
-
-// Middleware для Basic Auth (если используется в Zrok)
-const basicAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    return res.status(401).json({ error: 'Требуется Basic Auth' });
-  }
-  
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-  const [username, password] = credentials.split(':');
-  
-  if (username !== 'admin' || password !== 'admin123') {
-    return res.status(403).json({ error: 'Неверные учетные данные' });
-  }
-  
-  next();
-};
-
-// Middleware JWT аутентификации
-async function authenticate(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Требуется токен' });
-
-  try {
-    const decoded = jwt.verify(token, SECRET);
-    const client = new MongoClient(MONGODB_URI);
-    
-    try {
-      await client.connect();
-      
-      // Получение пользователя по ID или email
-      let userInfo = null;
-      
-      // Проверяем сначала в коллекции users (для новых пользователей)
-      if (decoded.userId) {
-        userInfo = await client.db('DatabaseAi').collection('users').findOne({ 
-          _id: new ObjectId(decoded.userId) 
-        });
-      } else if (decoded.email) {
-        userInfo = await client.db('DatabaseAi').collection('users').findOne({ 
-          email: decoded.email 
-        });
-      }
-      
-      // Проверка в старой коллекции для совместимости с гигачатом
-      if (!userInfo && decoded.username) {
-        userInfo = await client.db('DatabaseAi').collection('myCollection').findOne({ 
-          username: decoded.username 
-        });
-      }
-      
-      if (!userInfo && decoded.username !== 'admin') {
-        return res.status(401).json({ error: 'Пользователь не найден' });
-      }
-      
-      // Установка информации о пользователе в req
-      if (userInfo) {
-        req.user = {
-          _id: userInfo._id.toString(),
-          email: userInfo.email || userInfo.username,
-          name: userInfo.name || userInfo.username,
-          nickname: userInfo.nickname,
-          role: userInfo.role || 'user',
-          personalityType: userInfo.personalityType,
-          avatar: userInfo.avatar,
-          gender: userInfo.gender,
-          age: userInfo.age
-        };
-      } else if (decoded.username === 'admin') {
-        // Для администратора без записи в базе
-        req.user = {
-          username: 'admin',
-          role: 'admin',
-          _id: 'admin'
-        };
-      }
-    } catch (err) {
-      console.error('Ошибка при получении данных пользователя:', err);
-      req.user = {
-        ...decoded,
-        role: decoded.role || 'user'
-      };
-    } finally {
-      await client.close();
-    }
-    next();
-  } catch (err) {
-    res.status(403).json({ error: 'Неверный или просроченный токен' });
-  }
-}
-
-// Маршруты для гигачата (остаются без изменений)
-app.use('/api/gigachat', authenticate, require('./routes/gigachat'));
 
 // Эндпоинт для регистрации (без аутентификации)
 app.post('/api/register', async (req, res) => {
@@ -247,6 +163,9 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Поддержка старого эндпоинта логина с Basic Auth
+/**
+ * @deprecated Используйте обычный эндпоинт логина с токеном
+ */
 app.post('/api/login-basic', basicAuth, async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   
@@ -263,249 +182,6 @@ app.post('/api/login-basic', basicAuth, async (req, res) => {
     }, SECRET, { expiresIn: '1h' });
     
     res.json({ token });
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Получение данных текущего пользователя
-app.get('/api/user', authenticate, async (req, res) => {
-  res.json(req.user);
-});
-
-// Обновление профиля текущего пользователя
-app.put('/api/user', authenticate, async (req, res) => {
-  const userId = req.user._id;
-  if (!userId || userId === 'admin') {
-    return res.status(400).json({ error: 'Недопустимый ID пользователя' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-  
-  try {
-    await client.connect();
-    
-    // Исключаем чувствительные поля от обновления
-    const { password, _id, role, createdAt, ...updateData } = req.body;
-    
-    const result = await client.db('DatabaseAi').collection('users').updateOne(
-      { _id: new ObjectId(userId) },
-      { $set: updateData }
-    );
-    
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    
-    // Получаем обновленные данные пользователя
-    const updatedUser = await client.db('DatabaseAi').collection('users').findOne(
-      { _id: new ObjectId(userId) }
-    );
-    
-    // Не возвращаем пароль
-    if (updatedUser.password) {
-      delete updatedUser.password;
-    }
-    
-    res.json(updatedUser);
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Создание пользователей (администраторский доступ)
-app.post('/api/users', authenticate, async (req, res) => {
-  // Проверка прав администратора
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Требуются права администратора' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-  
-  try {
-    await client.connect();
-    
-    // Проверяем наличие обязательного поля username или email
-    if (!req.body.username && !req.body.email) {
-      return res.status(400).json({ error: 'Требуется поле username или email' });
-    }
-    
-    // Определяем коллекцию в зависимости от типа данных
-    const collection = req.body.email ? 'users' : 'myCollection';
-    const searchField = req.body.email ? { email: req.body.email } : { username: req.body.username };
-    
-    // Проверяем, не существует ли уже пользователь
-    const existingUser = await client.db('DatabaseAi').collection(collection).findOne(searchField);
-    if (existingUser) {
-      return res.status(400).json({ error: 'Пользователь с таким username/email уже существует' });
-    }
-    
-    // Создаем пользователя
-    const user = await client.db('DatabaseAi').collection(collection).insertOne({
-      ...req.body,
-      role: req.body.role || 'user', // По умолчанию устанавливаем роль 'user'
-      createdAt: new Date()
-    });
-    
-    res.status(201).json({ _id: user.insertedId, ...req.body });
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Обновление пользователя (UPDATE)
-app.put('/api/users/:id', authenticate, async (req, res) => {
-  // Проверка прав - обычный пользователь может обновлять только себя
-  if (req.user.role !== 'admin' && req.user._id !== req.params.id) {
-    return res.status(403).json({ error: 'Нет прав для изменения другого пользователя' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-  const { id } = req.params;
-  
-  try {
-    await client.connect();
-    
-    // Исключаем чувствительные поля для не-админов
-    let updateData = { ...req.body };
-    if (req.user.role !== 'admin') {
-      const { role, _id, ...safeData } = updateData;
-      updateData = safeData;
-    }
-    
-    // Сначала проверяем в коллекции users
-    let result = await client.db('DatabaseAi').collection('users').updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    );
-    
-    // Если не нашли, проверяем в myCollection
-    if (result.matchedCount === 0) {
-      result = await client.db('DatabaseAi').collection('myCollection').updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateData }
-      );
-    }
-    
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    
-    res.json({ _id: id, ...updateData });
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Удаление пользователя (DELETE)
-app.delete('/api/users/:id', authenticate, async (req, res) => {
-  // Проверка прав администратора
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Требуются права администратора' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-  const { id } = req.params;
-  
-  try {
-    await client.connect();
-    
-    // Проверяем обе коллекции
-    const db = client.db('DatabaseAi');
-    let result = await db.collection('users').deleteOne({ _id: new ObjectId(id) });
-    
-    if (result.deletedCount === 0) {
-      result = await db.collection('myCollection').deleteOne({ _id: new ObjectId(id) });
-    }
-    
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    
-    res.status(204).send();
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Получение пользователя по ID
-app.get('/api/users/:id', authenticate, async (req, res) => {
-  const { id } = req.params;
-  
-  // Проверка прав - обычный пользователь может просматривать только себя
-  if (req.user.role !== 'admin' && req.user._id !== id) {
-    return res.status(403).json({ error: 'Нет прав для просмотра другого пользователя' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-
-  try {
-    await client.connect();
-    
-    // Проверяем обе коллекции
-    let user = await client.db('DatabaseAi').collection('users').findOne({ _id: new ObjectId(id) });
-    
-    if (!user) {
-      user = await client.db('DatabaseAi').collection('myCollection').findOne({ _id: new ObjectId(id) });
-    }
-    
-    if (!user) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    
-    // Не возвращаем пароль
-    if (user.password) {
-      delete user.password;
-    }
-    
-    res.json(user);
-  } catch (err) {
-    console.error('MongoDB error:', err);
-    res.status(500).json({ error: 'Ошибка базы данных' });
-  } finally {
-    await client.close();
-  }
-});
-
-// Получение списка пользователей (только для админов)
-app.get('/api/users', authenticate, async (req, res) => {
-  // Проверка прав администратора
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Требуются права администратора' });
-  }
-  
-  const client = new MongoClient(MONGODB_URI);
-  
-  try {
-    await client.connect();
-    const db = client.db('DatabaseAi');
-    
-    // Получаем пользователей из обеих коллекций
-    const usersCollection = await db.collection('users').find().toArray();
-    const myCollection = await db.collection('myCollection').find().toArray();
-    
-    // Объединяем и удаляем пароли
-    const allUsers = [...usersCollection, ...myCollection].map(user => {
-      const { password, ...userData } = user;
-      return userData;
-    });
-    
-    res.json(allUsers);
   } catch (err) {
     console.error('MongoDB error:', err);
     res.status(500).json({ error: 'Ошибка базы данных' });
