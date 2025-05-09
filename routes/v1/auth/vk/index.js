@@ -1,10 +1,13 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
-const { authenticate } = require('../../../middlewares/authenticate');
+const { authenticate } = require('../../../../middlewares/authenticate');
+const { fetchPublicInfo } = require('../../../../utils/vk');
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const SECRET = process.env.SECRET;
+const SECRET = process.env.JWT_SECRET;
+const VK_PUBLIC_KEY = process.env.VK_PUBLIC_KEY;
+const VK_CLIENT_ID = process.env.VK_CLIENT_ID;
 
 router.post('/', async (req, res) => {
   console.log('[API /auth/vk] ', req.body);
@@ -19,7 +22,7 @@ router.post('/', async (req, res) => {
 
   const url = "https://id.vk.com/oauth2/auth";
   const data = {
-    client_id: process.env.VK_CLIENT_ID,
+    client_id: VK_CLIENT_ID,
     grant_type: 'authorization_code',
     code: code,
     code_verifier: code_verifier,
@@ -45,16 +48,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Неверный ответ от VK' });
     }
 
-    const { sub: vkUserId } = jwt.verify(id_token, process.env.VK_PUBLIC_KEY);
+    const { sub: vkUserId } = jwt.verify(id_token, VK_PUBLIC_KEY);
     console.log('[API /auth/vk] decode id_token ', vkUserId);
     // find in users collection where vkProfile.id is equal to vkUserId
     const user = await client.db('DatabaseAi').collection('users').findOne({ 'vkProfile.id': vkUserId });
     console.log('[API /auth/vk] found user ', user);
     let userId = user?._id.toString();
     if (!userId) {
+      const user = await fetchPublicInfo(id_token)
+      console.log('[API /auth/vk] public info ', user);
       console.log('[API /auth/vk] creating new user');
       // create new user
       const newUser = {
+        name: `${user.first_name} ${user.last_name}`,
+        nickname: `${user.first_name} ${user.last_name}`,
         vkProfile: {
           id: vkUserId,
           access_token,
@@ -96,6 +103,7 @@ router.post('/logout', authenticate, async (req, res) => {
   
   const user = await client.db('DatabaseAi').collection('users').findOne({ _id: new ObjectId(userId) });
   if (!user) {
+    console.log('[API /auth/vk/logout] user not found');
     return res.status(404).json({ error: 'Пользователь не найден' });
   }
 
@@ -103,7 +111,7 @@ router.post('/logout', authenticate, async (req, res) => {
 
   const url = 'https://id.vk.com/oauth2/logout';
   const data = {
-    client_id: process.env.VK_CLIENT_ID,
+    client_id: VK_CLIENT_ID,
     access_token: accessToken
   };
 
@@ -120,8 +128,10 @@ router.post('/logout', authenticate, async (req, res) => {
     console.log('[API /auth/vk/logout] fetch response data ', responseData);
 
     if (responseData.response === 1) {
+      console.log('[API /auth/vk/logout] VK token invalidated');
       res.status(200).json({ message: 'VK токен инвалидирован' });
     } else {
+      console.log('[API /auth/vk/logout] error invalidating VK token', responseData);
       res.status(response.status).json({ error: 'Ошибка при инвалидации VK токена' });
     }
   } catch (err) {
@@ -130,6 +140,10 @@ router.post('/logout', authenticate, async (req, res) => {
   } finally {
     await client.close();
   }
+});
+
+router.post('/health', async (req, res) => {
+  res.status(200).json({ message: 'OK' });
 });
 
 module.exports = router;
