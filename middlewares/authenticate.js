@@ -1,5 +1,6 @@
 const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
+const { refreshToken } = require('../utils/vk');
 require('dotenv').config();
 
 const SECRET = process.env.JWT_SECRET || 'ваш_резервный_секрет';
@@ -59,6 +60,15 @@ async function authenticate(req, res, next) {
       
       if (!userInfo && decoded.username !== 'admin') {
         return res.status(401).json({ error: 'Пользователь не найден' });
+      }
+
+      if (userInfo.vkProfile) {
+        const { expires_at, refresh_token, device_id } = userInfo.vkProfile;
+        if (expires_at < Date.now() / 1000) {
+          console.log('[Middleware authenticate] Token expired, refreshing...')
+          const { access_token: newAccessToken, refresh_token: newRefreshToken, expires_at: newExpiresAt } = await refreshToken(refresh_token, device_id)
+          await client.db('DatabaseAi').collection('users').updateOne({ _id: new ObjectId(userInfo._id) }, { $set: { 'vkProfile.access_token': newAccessToken, 'vkProfile.refresh_token': newRefreshToken, 'vkProfile.expires_at': newExpiresAt } })
+        }
       }
       
       // Установка информации о пользователе в req

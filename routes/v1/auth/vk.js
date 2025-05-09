@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
-const { authenticate } = require('../../../../middlewares/authenticate');
-const { fetchPublicInfo } = require('../../../../utils/vk');
+const { authenticate } = require('../../../middlewares/authenticate');
+const { fetchPublicInfo } = require('../../../utils/vk');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const SECRET = process.env.JWT_SECRET;
@@ -67,7 +67,8 @@ router.post('/', async (req, res) => {
           access_token,
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_token,
-          id_token
+          id_token,
+          device_id,
         },
         role: 'user'
       };
