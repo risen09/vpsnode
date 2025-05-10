@@ -5,7 +5,7 @@ const { PromptTemplate } = require("@langchain/core/prompts");
 const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
 const { QuestionSchema, TestSchema } = require("./schemas");
 const { MongoClient } = require('mongodb');
-const { giga } = require('../llm');
+const { giga } = require('../../routes/v1/agents/llm');
 const { z } = require('zod');
 const { Annotation, START, END, StateGraph, MemorySaver } = require('@langchain/langgraph');
 

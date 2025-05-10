@@ -1,5 +1,4 @@
 const router = require('express').Router();
-const { MongoClient, ObjectId } = require('mongodb');
 const { lessonCreatorAgent } = require('../../../agents/lesson-creator/graph');
 const { z } = require('zod');
 /**

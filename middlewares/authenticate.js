@@ -93,6 +93,7 @@ async function authenticate(req, res, next) {
     }
     next();
   } catch (err) {
+    console.error('Ошибка при аутентификации пользователя:', err);
     res.status(403).json({ error: 'Неверный или просроченный токен' });
   }
 }
