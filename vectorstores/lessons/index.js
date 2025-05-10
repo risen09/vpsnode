@@ -5,6 +5,8 @@ const { RecursiveCharacterTextSplitter } = require("@langchain/textsplitters");
 const { GigaChatEmbeddings } = require("langchain-gigachat");
 const https = require("https");
 
+const CHROMA_URL = process.env.CHROMA_URL;
+
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false,
 });
@@ -41,7 +43,7 @@ const main = async () => {
 
   await Chroma.fromDocuments(cleanedChunks, embeddings, {
     collectionName: "textbooks",
-    url: "http://localhost:8000", // Make sure this points to your ChromaDB instance
+    url: CHROMA_URL, // Make sure this points to your ChromaDB instance
   });
 
   console.log(`[VectorStore] Added ${cleanedChunks.length} documents to vector store`)

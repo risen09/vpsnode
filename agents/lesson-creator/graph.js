@@ -7,6 +7,8 @@ const { z } = require("zod");
 const https = require("https");
 const { MongoClient } = require("mongodb");
 
+const CHROMA_URL = process.env.CHROMA_URL;
+
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false,
 });
@@ -16,7 +18,7 @@ const vectorStore = new Chroma(new GigaChatEmbeddings({
     httpsAgent,
 }), {
     collectionName: "textbooks",
-    url: "http://localhost:8000",
+    url: CHROMA_URL,
 });
 
 const retriever = vectorStore.asRetriever({

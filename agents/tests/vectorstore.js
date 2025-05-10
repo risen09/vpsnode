@@ -7,6 +7,8 @@ const { ObjectId } = require('mongodb');
 const https = require('https');
 const { GigaChatEmbeddings } = require('langchain-gigachat');
 
+const CHROMA_URL = process.env.CHROMA_URL;
+
 const httpsAgent = new https.Agent({
     rejectUnauthorized: false
 });
@@ -84,7 +86,7 @@ async function initializeVectorStore() {
     try {
         const vectorStore = new Chroma(embeddings, {
             collectionName: 'diagnosticQuestions',
-            url: 'http://localhost:8000',
+            url: CHROMA_URL,
         });
         console.log("[VectorStore] Chroma created successfully.");
         return vectorStore;
