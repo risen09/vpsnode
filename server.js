@@ -10,6 +10,8 @@ app.use(cors());
 app.use(express.json());
 
 // v1 API
+// Маршруты для авторизации
+app.use('/api/auth', require('./routes/v1/auth'));
 // Добавляем маршруты для агентов
 app.use('/api/lesson-creator', authenticate, require('./routes/v1/agents/lesson-creator'));
 app.use('/api/experts', authenticate, require('./routes/v1/agents/subject-expert'));
@@ -161,6 +163,7 @@ app.post('/api/login', async (req, res) => {
     await client.close();
   }
 });
+
 
 // Поддержка старого эндпоинта логина с Basic Auth
 /**
