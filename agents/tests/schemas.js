@@ -46,11 +46,4 @@ const TestSchema = z.object({
   createdAt: z.date().describe("The date and time the test was created."),
 }).describe("Represents a complete diagnostic test.");
 
-const RequestSchema = z.object({
-    subject: z.string().min(1),
-    topic: z.string().min(1),
-    difficulty: z.string().min(1),
-    grade: z.number().min(1).max(11),
-    numQuestions: z.number().int().positive().default(5)
-});
-module.exports = { QuestionSchema, TestSchema, QuestionMetadataSchema, RequestSchema }; 
+module.exports = { QuestionSchema, TestSchema, QuestionMetadataSchema }; 

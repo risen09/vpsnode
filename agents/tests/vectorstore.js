@@ -1,9 +1,20 @@
-const { embeddings } = require('../llm');
 const { QuestionMetadataSchema } = require('./schemas');
 const { Document } = require('langchain/document');
 const { MongoClient } = require('mongodb');
 const { Chroma } = require('@langchain/community/vectorstores/chroma');
 const { ObjectId } = require('mongodb');
+
+const https = require('https');
+const { GigaChatEmbeddings } = require('langchain-gigachat');
+
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false
+});
+
+const embeddings = new GigaChatEmbeddings({
+    credentials: process.env.GIGACHAT_CREDENTIALS,
+    httpsAgent
+})
 
 async function addDocumentsToVectorStore(vectorStore, questionIds) {
     try {

@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require('mongodb');
+const { authenticate } = require('../../../middlewares/authenticate');
 require('dotenv').config();
 
 const MONGODB_URI = process.env.MONGODB_URI;

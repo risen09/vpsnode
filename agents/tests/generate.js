@@ -1,6 +1,4 @@
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { StructuredOutputParser } = require("@langchain/core/output_parsers");
-const { RunnableSequence } = require("@langchain/core/runnables");
 const { QuestionSchema } = require("./schemas");
 const { z } = require("zod");
 const { giga } = require("../llm");
