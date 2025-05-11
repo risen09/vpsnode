@@ -201,6 +201,9 @@ router.get('/:id', async (req, res) => {
 
 // Отправка ответов на тест
 router.post('/:id/submit', async (req, res) => {
+    const threadId = crypto.randomUUID();
+    console.log(`[API /tests] Generated thread ID: ${threadId}`);
+
     try {
         const { _id } = req.user;
         const { id } = req.params;
@@ -231,7 +234,7 @@ router.post('/:id/submit', async (req, res) => {
         
         // Run the diagnostic workflow
         console.log(`[API /tests] Running diagnostic workflow for test ${id}...`);
-        const workflowResult = await runDiagnosis(_id, id);
+        const workflowResult = await runDiagnosis(_id, id, threadId);
         console.log(`[API /tests] Diagnostic workflow completed with result: ${JSON.stringify(workflowResult)}`);
 
         const result = z.object({
@@ -240,7 +243,7 @@ router.post('/:id/submit', async (req, res) => {
         }).parse(workflowResult);
 
         if (!result.success) {
-            res.status(500).json({ error: result.error });
+            throw new Error(result.error);
         }
 
         // Проверяем ответы и вычисляем результат

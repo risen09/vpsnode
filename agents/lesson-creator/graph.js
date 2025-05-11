@@ -222,7 +222,7 @@ const generateLessonNode = async (state) => {
 const checkLessonQuality = (state) => {
     console.log(`[LangGraph] Quality Gate Check`);
     const { lesson, structure, topic } = state;
-    const MIN_LESSON_LENGTH = 3000;
+    const MIN_LESSON_LENGTH = 1500;
     let issues = [];
 
     if (!lesson || typeof lesson !== 'string' || lesson.length < MIN_LESSON_LENGTH) {

@@ -23,6 +23,8 @@ app.use('/api/progress-analyzer', authenticate, require('./routes/v1/agents/prog
 app.use('/api/initial-diagnostics', require('./routes/v1/agents/initial-diagnostics'));
 // Добавляем маршрут для работы с тестами
 app.use('/api/tests', authenticate, require('./routes/v1/agents/tests/index'));
+// Добавляем маршрут для треков
+app.use('/api/tracks', authenticate, require('./routes/v1/tracks'));
 // Добавляем маршрут для работы с уроками
 app.use('/api/lessons', authenticate, require('./routes/v1/lessons/index'));
 // Добавляем маршрут для работы с пользователями

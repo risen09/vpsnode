@@ -1,9 +1,10 @@
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { StateGraph, END, START, Annotation } = require("@langchain/langgraph");
+const { StateGraph, END, START, Annotation, MemorySaver } = require("@langchain/langgraph");
 const { GigaChat } = require("langchain-gigachat");
 const { MongoClient, ObjectId } = require('mongodb');
 const https = require('https');
 const z = require('zod');
+const { lessonCreatorAgent } = require('../lesson-creator/graph');
 // Assume Track model is available if needed for saving later
 // const Track = require('../../../models/Track'); // Adjust path as needed
 
@@ -30,6 +31,9 @@ const state = Annotation.Root({
     default: () => null
   }),
   topic: Annotation({
+    default: () => null
+  }),
+  grade: Annotation({
     default: () => null
   }),
   gradedResults: Annotation({
@@ -102,6 +106,7 @@ async function loadTestData(state) {
       testQuestions: test.questions || [],
       subject: test.subject,
       topic: test.topic,
+      grade: test.grade
      };
   } catch (err) {
     console.error("[Graph] Error loading test data:", err);
@@ -415,13 +420,41 @@ async function requestNewLessons(state) {
   const { topicsNeedingLessons } = state;
   console.log(`[Graph] Placeholder for requesting/generating new lessons for:`, topicsNeedingLessons);
 
-  // ***** LLM / EXTERNAL CALL OPPORTUNITY *****
-  // This is where you would:
-  // 1. Call an LLM to generate lesson content for each topic in topicsNeedingLessons.
-  // 2. Save the new lessons to the 'lessons' collection.
-  // 3. Get the new lesson IDs.
-  // 4. Potentially update the state.learningTrack.lessons array with new IDs.
-  // For now, we do nothing except acknowledge the need. The track description already notes it.
+  for (const topic of topicsNeedingLessons) {
+    console.log(`[Graph] Requesting/generating a new lesson for topic:`, topic);
+
+    const params = {
+      subject: state.subject,
+      topic: topic.sub_topic,
+      grade: state.grade,
+    }
+
+    const response = await lessonCreatorAgent.invoke(params)
+      console.log(`[Graph] Received response from lesson creator agent:`, response);
+
+      const client = new MongoClient(process.env.MONGODB_URI);
+      await client.connect();
+      console.log(`[Graph] Connected to MongoDB to update track's lesson ids`);
+      try {
+        const collection = client.db('DatabaseAi').collection('tracks');
+        console.log(`[Graph] Inserting new lesson into MongoDB`);
+
+        if (!state.learningTrack) {
+          return { error: "Learning track not found. Cannot add new lesson ID." };
+        }
+        const { lessons } = await collection.findOne({ _id: new ObjectId(state.learningTrack._id) });
+        lessons.push(response.lessonId);
+        console.log(`[Graph] New lesson saved in Track (${state.learningTrack._id}) sucessfully with ID: ${newLessonId}`);
+        const updateResult = await collection.updateOne({ _id: new ObjectId(state.learningTrack._id) }, { $set: { lessons } });
+        console.log(`[Graph] Updated learning track (${state.learningTrack._id}) with new lesson IDs.`);
+      } catch (err) {
+        return { error: `DB Error updating MongoDB document with new lesson IDs: ${err.message}`
+      }
+      } finally {
+        await client.close();
+        console.log(`[Graph] Disconnected from MongoDB`);
+      }
+    };
 
   return {}; // No state change in this mock version
 }
@@ -516,7 +549,8 @@ workflow.addEdge("save_track", END);
 workflow.addEdge("error_handler", END); // End after handling error
 
 // Compile the graph
-const app = workflow.compile();
+const checkpointer = new MemorySaver();
+const app = workflow.compile({ checkpointer });
 
 console.log("[Graph] Diagnostic LangGraph workflow compiled, ready to fix leaks!");
 
@@ -527,11 +561,19 @@ console.log("[Graph] Diagnostic LangGraph workflow compiled, ready to fix leaks!
  * @param {string} testId - The ObjectId of the completed initialTest.
  * @returns {Promise<object>} An object indicating success (`{ success: true, trackId: string }`) or failure (`{ success: false, error: string }`).
  */
-async function runDiagnosis(userId, testId) {
+async function runDiagnosis(userId, testId, threadId) {
     const initialState = { userId, testId };
+    const config = {
+        configurable: {
+            thread_id: threadId
+        }
+    }
     console.log(`Starting diagnosis for User: ${userId}, Test: ${testId}`);
     try {
-        const finalState = await app.invoke(initialState);
+        const finalState = await app.invoke(initialState, {
+          ...config,
+          subgraphs: true
+        });
         if (finalState.error) {
              console.error("Diagnosis finished with error:", finalState.error);
              return { success: false, error: finalState.error };
