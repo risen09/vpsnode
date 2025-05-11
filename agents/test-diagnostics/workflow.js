@@ -333,7 +333,7 @@ async function findExistingLessons(state) {
  */
 async function createTrackStructure(state) {
     console.log("--- Node: createTrackStructure ---");
-    const { userId, subject, topic, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
+    const { userId, subject, topic, grade, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
 
     const llm = new GigaChat({
       model: 'GigaChat-2',
@@ -387,6 +387,7 @@ JSON-выход: {{ "name": "Путешествие во времена рыца
         subject: subject,
         topic: topic, // Original test topic, maybe refine later
         lessons: foundLessonIds, // Only add existing lessons for now
+        grade: grade,
         tests: [], // Maybe add follow-up tests later?
         // schedule: {}, // Schedule needs separate logic if used
         createdAt: new Date(),
