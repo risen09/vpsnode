@@ -10,7 +10,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Обновление профиля текущего пользователя
-router.put('/', authenticate, async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   const userId = req.user._id;
   if (!userId || userId === 'admin') {
     return res.status(400).json({ error: 'Недопустимый ID пользователя' });

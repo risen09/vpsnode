@@ -3,11 +3,22 @@ const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { authenticate, basicAuth } = require('./middlewares/authenticate');
+const connectDB = require('./config/db');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+connectDB().catch(err => console.error(err));
+
+// v2 API
+// Маршруты для авторизации
+app.use('/api/v2/auth', require('./routes/v2/auth'));
+// Добавляем маршруты для работы с пользователями
+app.use('/api/v2/users', authenticate, require('./routes/v2/users'));
+// Добавляем маршрут для работы с текущим пользователем
+app.use('/api/v2/user', authenticate, require('./routes/v2/user'));
 
 // v1 API
 // Маршруты для авторизации
@@ -385,6 +396,10 @@ app.delete('/api/:collection/:id', authenticate, async (req, res) => {
   } finally {
     await client.close();
   }
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).send('OK');
 });
 
 app.listen(3000, '0.0.0.0', () => {

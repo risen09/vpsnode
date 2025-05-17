@@ -16,6 +16,69 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// Получение пользователя по ID
+router.get('/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  }
+});
+
+// Обновление пользователя по ID
+router.post('/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  // Проверка прав администратора и текущего пользователя
+  if (req.user.role !== 'admin' && req.user._id.toString() !== id) {
+    return res.status(403).json({ error: 'Недостаточно прав для обновления пользователя' });
+  }
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    res.status(200).json({
+      message: 'Пользователь успешно обновлен',
+      user: updatedUser
+    });
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  }
+});
+
+// Удаление пользователя по ID
+router.delete('/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  // check if role is admin and check if current user is trying to delete himself
+  if (req.user.role !== 'admin' && req.user._id.toString() !== id) {
+    return res.status(403).json({ error: 'Недостаточно прав для удаления пользователя' });
+  }
+
+  try {
+    const deletedUser = await User.findByIdAndDelete(id);
+    if (!deletedUser) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    
+    res.status(200).json({
+      message: 'Пользователь успешно удален'
+    });
+  } catch (err) {
+    console.error('MongoDB error:', err);
+    res.status(500).json({ error: 'Ошибка базы данных' });
+  }
+});
+
 // Создание пользователей (администраторский доступ)
 router.post('/', authenticate, async (req, res) => {
   // Проверка прав администратора
