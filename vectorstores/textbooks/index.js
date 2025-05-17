@@ -4,7 +4,9 @@ const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { RecursiveCharacterTextSplitter } = require("@langchain/textsplitters");
 const { GigaChatEmbeddings } = require("langchain-gigachat");
 const https = require("https");
+const path = require("path");
 
+const directoryPath = path.join(__dirname, '../../assets/documents');
 const CHROMA_URL = process.env.CHROMA_URL;
 
 const httpsAgent = new https.Agent({
@@ -12,9 +14,9 @@ const httpsAgent = new https.Agent({
 });
 
 const main = async () => {
-  const directoryLoader = new DirectoryLoader('../assets/documents/algebra', {
+  const directoryLoader = new DirectoryLoader(directoryPath, {
     ".pdf": (filePath) => new PDFLoader(filePath, { splitPages: false })
-  })
+  }, true)
   const docs = await directoryLoader.load();
 
   console.log(`[VectorStore] Found ${docs.length} documents`);
@@ -38,7 +40,7 @@ const main = async () => {
 
   const embeddings = new GigaChatEmbeddings({
     credentials: process.env.GIGACHAT_CREDENTIALS,
-    httpsAgent,
+    httpsAgent
   })
 
   await Chroma.fromDocuments(cleanedChunks, embeddings, {
