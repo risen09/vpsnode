@@ -9,6 +9,8 @@ const { RegistrationSchema } = require('./schemas')
 
 const SECRET = process.env.JWT_SECRET;
 
+router.use('/vk', require('./vk'))
+
 router.post('/login', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.body.email })

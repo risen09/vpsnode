@@ -4,12 +4,30 @@ const { Schema } = mongoose;
 // Define Schema
 const userSchema = new Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  email: { type: String, unique: true,
+    required: function() {
+      return !this.vkProfile?.id;
+    }
+   },
   username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  password: { type: String, 
+    required: function() {
+      return !this.vkProfile?.id;
+    }
+  },
   gender: { type: String, required: true },
-  age: { type: Number, min: 7, max: 17, required: true },
-  grade: { type: Number, min: 1, max: 11, required: true },
+  age: {
+    type: Number, 
+    // min: 7,
+    // max: 17,
+    required: true
+  },
+  grade: {
+    type: Number,
+    // min: 1,
+    // max: 11,
+    required: true
+  },
   personalityType: { type: String },
   avatar: { type: String },
   createdAt: { type: Date, default: Date.now },
