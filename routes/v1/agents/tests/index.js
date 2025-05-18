@@ -231,6 +231,14 @@ router.post('/:id/submit', async (req, res) => {
             await client.close();
             return res.status(403).json({ error: 'Нет доступа к этому тесту' });
         }
+        await client.db('DatabaseAi').collection('initialTests').updateOne(
+            { _id: new ObjectId(id) },
+            { 
+                $set: { 
+                    userAnswers: answers,
+                }
+            }
+        );
         
         // Run the diagnostic workflow
         console.log(`[API /tests] Running diagnostic workflow for test ${id}...`);

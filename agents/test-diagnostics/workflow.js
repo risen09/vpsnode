@@ -97,7 +97,7 @@ async function loadTestData(state) {
     // Ensure userAnswers exists, even if empty
     if (!test.userAnswers) {
         console.warn(`[Graph] Test ${testId} has no userAnswers array.`);
-        test.userAnswers = [];
+        return { error: `No user answers found for in test ${testId}.` };
     }
 
     console.log(`[Graph] Test data loaded successfully for user ${userId}, test ${testId}`);
