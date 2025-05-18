@@ -76,6 +76,7 @@ async function retrieveQuestions(state) {
             return QuestionSchema.parse({
                 grade: doc.metadata.grade,
                 sub_topic: doc.metadata.sub_topic,
+                topic: doc.metadata.topic,
                 questionText: doc.metadata.questionText,
                 options: JSON.parse(doc.metadata.options),
                 correctOptionIndex: +doc.metadata.correctOptionIndex,
