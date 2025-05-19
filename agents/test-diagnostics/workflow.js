@@ -89,15 +89,15 @@ async function loadTestData(state) {
     console.log(`[Graph] Disconnected from MongoDB`);
 
     if (!test) {
-      return { error: `Test not found: ${testId}` };
+      throw new Error(`Test not found: ${testId}`)
     }
     if (!test.completed) {
-        return { error: `Test ${testId} is not completed yet, blyat!` };
+        throw new Error(`Test ${testId} is not completed yet, blyat!` )
     }
     // Ensure userAnswers exists, even if empty
     if (!test.userAnswers) {
         console.warn(`[Graph] Test ${testId} has no userAnswers array.`);
-        return { error: `No user answers found for in test ${testId}.` };
+        throw new Error(`No user answers found for in test ${testId}.` )
     }
 
     console.log(`[Graph] Test data loaded successfully for user ${userId}, test ${testId}`);
@@ -418,46 +418,31 @@ function shouldRequestNewLessons(state) {
  */
 async function requestNewLessons(state) {
   console.log("--- Node: requestNewLessons ---");
-  const { topicsNeedingLessons } = state;
-  console.log(`[Graph] Placeholder for requesting/generating new lessons for:`, topicsNeedingLessons);
+  const { learningTrack, topicsNeedingLessons } = state;
+  if (!learningTrack) {
+    throw new Error("Learning track not found. Cannot add new lesson ID." )
+  }
 
   for (const topic of topicsNeedingLessons) {
     console.log(`[Graph] Requesting/generating a new lesson for topic:`, topic);
 
     const params = {
       subject: state.subject,
-      topic: topic.sub_topic,
+      topic: topic.topic,
+      sub_topic: topic.sub_topic,
       grade: state.grade,
     }
 
     const response = await lessonCreatorAgent.invoke(params)
-      console.log(`[Graph] Received response from lesson creator agent:`, response);
+    console.log(`[Graph] Received response from lesson creator agent:`, response);
 
-      const client = new MongoClient(process.env.MONGODB_URI);
-      await client.connect();
-      console.log(`[Graph] Connected to MongoDB to update track's lesson ids`);
-      try {
-        const collection = client.db('DatabaseAi').collection('tracks');
-        console.log(`[Graph] Inserting new lesson into MongoDB`);
+    learningTrack.lessons.push(response.lessonId);
+    console.log(`[Graph] New lesson saved in Track sucessfully with ID: ${response.lessonId}`);
 
-        if (!state.learningTrack) {
-          return { error: "Learning track not found. Cannot add new lesson ID." };
-        }
-        const { lessons } = await collection.findOne({ _id: new ObjectId(state.learningTrack._id) });
-        lessons.push(response.lessonId);
-        console.log(`[Graph] New lesson saved in Track (${state.learningTrack._id}) sucessfully with ID: ${newLessonId}`);
-        const updateResult = await collection.updateOne({ _id: new ObjectId(state.learningTrack._id) }, { $set: { lessons } });
-        console.log(`[Graph] Updated learning track (${state.learningTrack._id}) with new lesson IDs.`);
-      } catch (err) {
-        return { error: `DB Error updating MongoDB document with new lesson IDs: ${err.message}`
-      }
-      } finally {
-        await client.close();
-        console.log(`[Graph] Disconnected from MongoDB`);
-      }
-    };
+    break;
+  };
 
-  return {}; // No state change in this mock version
+  return { learningTrack };
 }
 
 /**
@@ -571,18 +556,20 @@ async function runDiagnosis(userId, testId, threadId) {
     }
     console.log(`Starting diagnosis for User: ${userId}, Test: ${testId}`);
     try {
-        const finalState = await app.invoke(initialState, {
+        const state = await app.invoke(initialState, {
           ...config,
           subgraphs: true
         });
-        if (finalState.error) {
-             console.error("Diagnosis finished with error:", finalState.error);
-             return { success: false, error: finalState.error };
-        } else if (finalState.savedTrackId) {
+        const finalState = state[1];
+        if (finalState.savedTrackId) {
             console.log("Diagnosis complete. Track created:", finalState.savedTrackId);
             // Maybe update the original test document with the track ID here
             // await updateTestWithTrackId(testId, finalState.savedTrackId);
              return { success: true, trackId: finalState.savedTrackId };
+        }
+        else if (finalState.error) {
+             console.error("Diagnosis finished with error:", finalState.error);
+             return { success: false, error: finalState.error };
         } else {
              console.warn("Diagnosis finished unexpectedly:", finalState);
              return { success: false, message: "Unknown state at finish." };

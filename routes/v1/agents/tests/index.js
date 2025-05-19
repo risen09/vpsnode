@@ -236,6 +236,7 @@ router.post('/:id/submit', async (req, res) => {
             { 
                 $set: { 
                     userAnswers: answers,
+                    completed: true
                 }
             }
         );

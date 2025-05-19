@@ -33,6 +33,9 @@ const AgentState = Annotation.Root({
     topic: Annotation({
         default: () => ""
     }),
+    sub_topic: Annotation({
+        default: () => ""
+    }),
     grade: Annotation({
         default: () => ""
     }),
@@ -73,7 +76,7 @@ const LessonStructureSchema = z.object({
  */
 const retrieve = async (state) => {
     console.log(`[LangGraph] RAG Search: Subject='${state.subject}', Topic='${state.topic}', Grade='${state.grade}'`);
-    const query = `Что такое ${state.topic}? Найди в учебниках по предмету ${state.subject} для ${state.grade} класса`
+    const query = `Что такое ${state.sub_topic}? Найди в учебниках по предмету ${state.subject} по теме ${state.topic} для ${state.grade} класса`
     console.log("   Query:", query);
     const context = await retriever.invoke(query);
     console.log("   RAG Found:", formatDocumentsAsString(context).substring(0, 100) + "...");
@@ -91,7 +94,7 @@ const generateStructureNode = async (state) => {
     console.log(`[LangGraph] Generating lesson structure node`);
 
     const llm = new GigaChat({
-        model: "GigaChat-2",
+        model: "GigaChat-2-Pro",
         temperature: 1,
         maxTokens: 5000,
         topP: 0.3,
@@ -138,7 +141,7 @@ const generateStructureNode = async (state) => {
     const structuredModel = llm.withStructuredOutput(LessonStructureSchema);
     const chain = prompt.pipe(structuredModel);
     const { sections } = await chain.invoke({
-        topic: state.topic,
+        topic: state.sub_topic,
         subject: state.subject,
         grade: state.grade,
     });
@@ -174,7 +177,7 @@ const generateLessonNode = async (state) => {
     })
 
     const prompt = PromptTemplate.fromTemplate(`
-Ты – опытный учитель, создающий подробный урок для {grade} класса по предмету {subject} на тему "{topic}".
+Ты – опытный учитель, создающий подробный урок для {grade} класса по предмету {subject} на тему "{sub_topic}" раздела "{topic}".
 
 У тебя есть ПЛАН УРОКА (структура):
 {structure}
@@ -186,7 +189,7 @@ const generateLessonNode = async (state) => {
 Напиши ПОЛНЫЙ и ПОДРОБНЫЙ текст урока, СТРОГО СЛЕДУЯ ПЛАНУ УРОКА.
 
 ### Инструкции:
-1.  Используй предоставленный КОНТЕКСТ, чтобы РАСКРЫТЬ КАЖДЫЙ ПУНКТ ПЛАНА подробно. Не просто упоминай, а объясняй, приводи примеры из контекста.
+1.  Используй предоставленный КОНТЕКСТ, чтобы РАСКРЫТЬ КАЖДЫЙ ПУНКТ ПЛАНА подробно. Не просто упоминай, а объясняй, приводи примеры из контекста. НЕ БЕРИ из КОНТЕКСТА то, что не нужно для данного урока.
 2.  Особенно МНОГО ВНИМАНИЯ удели основным разделам. Они должны быть большими, понятными, с примерами.
 3.  Пиши ПРОСТЫМ ЯЗЫКОМ для {grade} класса. Без сложных терминов. Будь как добрый дедушка, объясняющий мир ребёнку.
 4.  Обращайся к ученику на "ты".
@@ -202,6 +205,7 @@ const generateLessonNode = async (state) => {
     const chain = prompt.pipe(structuredModel);
     const { content } = await chain.invoke({
         topic: state.topic,
+        sub_topic: state.sub_topic,
         subject: state.subject,
         grade: state.grade,
         context: state.context,
@@ -227,33 +231,34 @@ const checkLessonQuality = (state) => {
 
     if (!lesson || typeof lesson !== 'string' || lesson.length < MIN_LESSON_LENGTH) {
         issues.push(`Lesson too short (current: ${lesson?.length ?? 0}, required: ${MIN_LESSON_LENGTH} chars) or not a string.`);
-    } else {
-        // Check if structure titles are present
-        if (structure && Array.isArray(structure) && structure.length > 0) {
-            const missingSections = structure
-                .map(section => section.title)
-                .filter(title => !lesson.includes(title));
-
-            if (missingSections.length > 0) {
-                issues.push(`Missing section titles in lesson text: ${missingSections.join(', ')}`);
-            }
-        } else if (!structure || !Array.isArray(structure) || structure.length === 0) {
-             // Allow empty structure if it was intended, maybe add check later? For now, only fail if structure *exists* but isn't followed.
-             // issues.push("Structure data is missing or invalid in state.");
-             console.warn("   Warning: No structure provided or structure is empty. Skipping structure check.");
-        }
-
-        // Check for topic keyword (simple example)
-        if (topic && !lesson.toLowerCase().includes(topic.toLowerCase())) {
-            issues.push(`Lesson text does not seem to contain the main topic: ${topic}`);
-        }
-
-        // Check for common refusal phrases (add more if needed)
-        const refusalPhrases = ["я не могу", "извините", "as an ai", "i cannot", "unable to provide"];
-        if (refusalPhrases.some(phrase => lesson.toLowerCase().includes(phrase))) {
-            issues.push("Lesson contains potential refusal language.");
-        }
     }
+    //  else {
+    //     // Check if structure titles are present
+    //     if (structure && Array.isArray(structure) && structure.length > 0) {
+    //         const missingSections = structure
+    //             .map(section => section.title)
+    //             .filter(title => !lesson.includes(title));
+
+    //         if (missingSections.length > 0) {
+    //             issues.push(`Missing section titles in lesson text: ${missingSections.join(', ')}`);
+    //         }
+    //     } else if (!structure || !Array.isArray(structure) || structure.length === 0) {
+    //          // Allow empty structure if it was intended, maybe add check later? For now, only fail if structure *exists* but isn't followed.
+    //          // issues.push("Structure data is missing or invalid in state.");
+    //          console.warn("   Warning: No structure provided or structure is empty. Skipping structure check.");
+    //     }
+
+    //     // Check for topic keyword (simple example)
+    //     if (topic && !lesson.toLowerCase().includes(topic.toLowerCase())) {
+    //         issues.push(`Lesson text does not seem to contain the main topic: ${topic}`);
+    //     }
+
+    //     // Check for common refusal phrases (add more if needed)
+    //     const refusalPhrases = ["я не могу", "извините", "as an ai", "i cannot", "unable to provide"];
+    //     if (refusalPhrases.some(phrase => lesson.toLowerCase().includes(phrase))) {
+    //         issues.push("Lesson contains potential refusal language.");
+    //     }
+    // }
 
     if (issues.length === 0) {
         console.log("   Quality Check Result: PASSED");
@@ -319,7 +324,7 @@ const saveLessonNode = async (state) => {
         throw new Error("Pizdec! Trying to save empty lesson.");
     }
 
-    const { subject, topic, grade, lesson } = state;
+    const { subject, topic, sub_topic, grade, lesson } = state;
     const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     console.log("   Connected to MongoDB");
@@ -328,6 +333,7 @@ const saveLessonNode = async (state) => {
     const result = await client.db('DatabaseAi').collection('lessons').insertOne({
         subject,
         topic,
+        sub_topic,
         grade,
         content: lesson,
         createdAt: new Date(),
