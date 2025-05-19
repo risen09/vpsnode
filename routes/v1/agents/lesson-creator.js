@@ -16,6 +16,7 @@ router.post('/createLesson', async (req, res) => {
     const schema = z.object({
       subject: z.string(),
       topic: z.string(),
+      sub_topic: z.string(),
       grade: z.number().min(5).max(12),
     });
 
@@ -34,6 +35,7 @@ router.post('/createLesson', async (req, res) => {
       const params = {
         subject,
         topic,
+        sub_topic,
         grade,
       }
 
