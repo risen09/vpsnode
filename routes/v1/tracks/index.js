@@ -36,8 +36,10 @@ router.get("/:trackId", async (req, res) => {
     }
     console.log("   Found track");
 
-    const lessons = await db.collection("lessons").find({ _id: { $in: track.lessons } }).toArray();
-    console.log("   Found lessons");
+    console.log("   Tracks lessons", track.lessons);
+    const lessonObjectIds = track.lessons.map((lesson) => new ObjectId(lesson));
+    const lessons = await db.collection("lessons").find({ _id: { $in: lessonObjectIds } }).toArray();
+    console.log("   Found lessons " + lessons.length);
     const { lessonIds, ...rest } = track;
     res.json({
       ...rest,
