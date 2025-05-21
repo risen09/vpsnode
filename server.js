@@ -19,6 +19,8 @@ app.use('/api/v2/auth', require('./routes/v2/auth'));
 app.use('/api/v2/users', authenticate, require('./routes/v2/users'));
 // Добавляем маршрут для работы с текущим пользователем
 app.use('/api/v2/user', authenticate, require('./routes/v2/user'));
+// Добавляем маршрут для работы с агентами
+app.use('/api/v2/agents', authenticate, require('./routes/v2/agents'));
 
 // v1 API
 // Маршруты для авторизации
