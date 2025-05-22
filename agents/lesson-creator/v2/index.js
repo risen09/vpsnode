@@ -1,3 +1,4 @@
+const { JsonOutputParser } = require("@langchain/core/output_parsers");
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { Annotation, StateGraph, END, START, MemorySaver } = require("@langchain/langgraph");
@@ -5,7 +6,16 @@ const { formatDocumentsAsString } = require("langchain/util/document");
 const { z } = require("zod");
 const { MongoClient } = require("mongodb");
 const { getLlm, embeddings } = require("../../getLlm");
+const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
+const https = require("https");
+const Lesson = require("../../../models/Lesson");
+const { jsonLessonSchema, LessonStructureSchema, LessonSchema } = require('./schemas')
+
 const CHROMA_URL = process.env.CHROMA_URL;
+
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false,
+});
 
 const vectorStore = new Chroma(embeddings, {
     collectionName: "textbooks",
@@ -34,11 +44,9 @@ const AgentState = Annotation.Root({
         default: () => ""
     }),
     structure: Annotation({
-        reducer: (value, state) => value.concat(state.structure),
         default: () => []
     }),
     lesson: Annotation({
-        reducer: (value, state) => value.concat(state.lesson),
         default: () => ""
     }),
     retryCount: Annotation({
@@ -48,65 +56,6 @@ const AgentState = Annotation.Root({
         default: () => ""
     }),
 }) 
-
-const LessonSectionSchema = z.object({
-    title: z.string().describe("Название раздела"),
-    description: z.string().describe("Краткое описание раздела"),
-})
-
-const LessonStructureSchema = z.object({
-    sections: z.array(LessonSectionSchema).describe("Разделы урока"),
-})
-
-const LessonBaseBlockSchema = z.object({
-    type: z.string().describe("Тип блока"),
-});
-
-const LessonParagraphBlockSchema = LessonBaseBlockSchema.extend({
-    type: z.literal("paragraph"),
-    content: z.string().describe("Содержимое параграфа"),
-});
-
-const LessonQuizBlockSchema = LessonBaseBlockSchema.extend({
-    type: z.literal("quiz"),
-    data: z.object({
-        question: z.string().describe("Текст вопроса"),
-        answers: z.array(z.string()).describe("Варианты ответов"),
-        correctAnswer: z.number().describe("Индекс правильного ответа"),
-        explanation: z.string().describe("Объяснение ответа"),
-    })
-});
-
-const LessonPlotBlockSchema = LessonBaseBlockSchema.extend({
-    type: z.literal('plot'),
-    data: z.object({
-        plotType: z.enum(['line', 'bar', 'scatter', 'pie']).describe("Тип графика"),
-        title: z.string().describe("Название графика"),
-        xlabel: z.string().describe("Ось X графика"),
-        ylabel: z.string().describe("Ось Y графика"),
-        // Data can be a generic array of numbers or objects, depending on complexity
-        // For simplicity, let's assume an array of objects with x, y for line/scatter
-        // Or an array of numbers for bar/pie (with labels)
-        series: z.array(z.object({
-            name: z.string(),
-            points: z.array(z.object({
-                x: z.number(),
-                y: z.number(),
-            })),
-        }))
-    })
-});
-
-
-const LessonBlockSchema = z.discriminatedUnion("type", [
-    LessonParagraphBlockSchema,
-    LessonQuizBlockSchema,
-    LessonPlotBlockSchema,
-]);
-
-const LessonSchema = z.object({
-    lesson: z.array(LessonBlockSchema).describe("Блоки урока")
-});
 
 // --- Node Functions---
 
@@ -136,12 +85,12 @@ const retrieve = async (state) => {
 const generateStructureNode = async (state) => {
     console.log(`[LangGraph] Generating lesson structure node`);
 
-    const llm = getLlm(
-        model = "Ollama",
-        temperature = 1,
-        maxTokens = 5000,
-        topP = 0.3,
-    )
+    const llm = getLlm({
+        model: "GigaChat-2",
+        provider: "gigachat",
+        temperature: 1,
+        topP: 0.3,
+    })
     
     const prompt = PromptTemplate.fromTemplate(`
 Ты – помощник преподавателя, создающий структуру уроков по различным темам школьных дисциплин. Тебе предоставляется учебный материал по конкретной теме {topic} определенного предмета {subject} для {grade} класса, на основе которого нужно разработать структуру урока.
@@ -150,6 +99,7 @@ const generateStructureNode = async (state) => {
 1. Выдели ключевые понятия и термины.
 2. Создай последовательную структуру урока, учитывая логическую связь между элементами.
 3. Убедись, что структура отражает полный объем необходимой информации и способствует глубокому пониманию темы учащимися.
+4. НЕ ИСПОЛЬЗУЙ LaTeX!
 
 ## Пример
 Вход: Учебник по биологии, тема "Фотосинтез"
@@ -180,15 +130,20 @@ const generateStructureNode = async (state) => {
 
     const structuredModel = llm.withStructuredOutput(LessonStructureSchema);
     const chain = prompt.pipe(structuredModel);
-    const { sections } = await chain.invoke({
-        topic: state.sub_topic,
-        subject: state.subject,
-        grade: state.grade,
-    });
+    try {
+        const { sections } = await chain.invoke({
+            topic: state.sub_topic,
+            subject: state.subject,
+            grade: state.grade,
+        });
 
-    console.log("   Generated Lesson Structure:", JSON.stringify(sections, null, 2));
+        console.log("   Generated Lesson Structure:", JSON.stringify(sections, null, 2));
 
-    return { structure: sections };
+        return { structure: sections };
+    } catch (e) {
+        console.error("Error generating structure:", e);
+        throw e;
+    }
 }
 
 /**
@@ -203,12 +158,13 @@ const generateLessonNode = async (state) => {
         throw new Error("Ebaniy rot! No context found to generate lesson.");
     }
 
-    const llm = getLlm({
-        model: 'openai/gpt-4.1',
-        stream: false,
-        provider: 'openai',
+    const llm = new GigaChat({
+        model: 'GigaChat-2-Max',
+        scope: 'GIGACHAT_API_PERS',
+        streaming: false,
+        credentials: process.env.GIGACHAT_CREDENTIALS,
+        httpsAgent,
     });
-
     const prompt = PromptTemplate.fromTemplate(`
 Ты – опытный учитель, создающий подробный урок для {grade} класса по предмету {subject} на тему "{sub_topic}" раздела "{topic}".
 
@@ -220,8 +176,32 @@ const generateLessonNode = async (state) => {
 
 ## Твоя Задача:
 Напиши ПОЛНЫЙ и ПОДРОБНЫЙ текст урока, СТРОГО СЛЕДУЯ ПЛАНУ УРОКА.
-Ты также можешь придумать небольшой вопрос для блок опроса ("quiz") после параграфа. Это не должно быть слишком длинным или сложно для понимания.
-Для уроков по математике/физике можешь строить передать точки для построения графика, для визуального пояснения.
+Ты также можешь придумать небольшой вопрос для блок опроса ("quiz") после параграфа. Этот не должен быть слишком длинным или сложным для понимания.
+Для уроков по математике/физике можешь передать точки для построения графика, для визуального пояснения.
+Ответь только в ВАЛИДНОМ JSON формате, чтобы я смог его спарсить. Валидный JSON должен следовать такой формату:
+{format_instructions}
+Если ты пишешь LaTeX в уроке, **обязательно экранируй все специальные символы LaTeX**! Это включает:
+
+- \`\` (обратный слеш) должен быть экранирован как \`\\\\\`
+- \`{{\` и \`}}\` (фигурные скобки) должны быть экранированы как \`\\\\{{\` и \`\\\\}}\`
+- \`$\` (знак доллара) должен быть экранирован как \`\\\$\`
+- \`&\` (амперсанд) должен быть экранирован как \`\\&\`
+- \`%\` (процент) должен быть экранирован как \`\\%\`
+- \`_\` (нижнее подчеркивание) должен быть экранирован как \`\\_\`
+- \`^\` (карет) должен быть экранирован как \`\\^\`
+- \`~\` (тильда) должен быть экранирован как \`\\~\`
+- \`#\` (решетка) должен быть экранирован как \`\\#\`
+
+
+Также убедись, что русские буквы в формулах, которые должны быть текстом, заключены в \`\\text{{...}}\`.
+
+Примеры:
+1. Вход: "Уравнение: x^2 + y^2 = r^2"
+   Выход: "Уравнение: $x\\text{{\\textasciicircum}}2 + y\\text{{\\textasciicircum}}2 = r\\text{{\\textasciicircum}}2$"
+2. Вход: "Переменная: R_эфф = 5 Ом"
+   Выход: "Переменная: $R\\text{{\\_}}\\text{{эфф}} = 5 \\text{{ Ом}}$"
+
+НЕ ЗАБЫВАЙ ЗАКРЫВАЮЩИЕ СКОБКИ в JSON!
 
 ### Инструкции:
 1.  Используй предоставленный КОНТЕКСТ, чтобы РАСКРЫТЬ КАЖДЫЙ ПУНКТ ПЛАНА подробно. Не просто упоминай, а объясняй, приводи примеры из контекста. НЕ БЕРИ из КОНТЕКСТА то, что не нужно для данного урока.
@@ -236,20 +216,28 @@ const generateLessonNode = async (state) => {
 - **Основная часть и примеры должны быть МАКСИМАЛЬНО ДЕТАЛЬНЫМИ И ДЛИННЫМИ**, насколько позволяет КОНТЕКСТ. Не жалей слов!
 `);
 
-    const structuredModel = llm.withStructuredOutput(LessonSchema);
-    const chain = prompt.pipe(structuredModel);
-    const { lesson } = await chain.invoke({
-        topic: state.topic,
-        sub_topic: state.sub_topic,
-        subject: state.subject,
-        grade: state.grade,
-        context: state.context,
-        structure: state.structure.map((section, index) => `${index + 1}. **${section.title}**: ${section.description}`).join("\n"),
-    });
+    const parser = new JsonOutputParser();
+    const chain = prompt.pipe(llm).pipe(parser);
+    try {
+        console.log("   Generating Lesson...");
+        const { lesson } = await chain.invoke({
+            topic: state.topic,
+            sub_topic: state.sub_topic,
+            subject: state.subject,
+            grade: state.grade,
+            context: state.context,
+            structure: state.structure.map((section, index) => `${index + 1}. **${section.title}**: ${section.description}`).join("\n"),
+            format_instructions: JSON.stringify(jsonLessonSchema),
+        });
 
-    console.log(`   Generated Lesson: ${lesson.length} characters`);
+        console.log(`   Generated Lesson: ${lesson.length} blocks`);
 
-    return { lesson };
+        return { lesson };
+
+    } catch (error) {
+        console.error("Error during lesson generation:", error);
+        return { lesson: null };
+    }
 };
 
 /**
@@ -264,44 +252,36 @@ const checkLessonQuality = (state) => {
     const MIN_LESSON_LENGTH = 1500;
     let issues = [];
 
-    if (!lesson || typeof lesson !== 'string' || lesson.length < MIN_LESSON_LENGTH) {
-        issues.push(`Lesson too short (current: ${lesson?.length ?? 0}, required: ${MIN_LESSON_LENGTH} chars) or not a string.`);
+    if (lesson == null) {
+        const issue = `Generated lesson is missing or null.`;
+        console.error(`   Quality Check Result: FAILED - ${issue}`);
+        return { verdict: "Fail", issues: [issue] };
     }
-    //  else {
-    //     // Check if structure titles are present
-    //     if (structure && Array.isArray(structure) && structure.length > 0) {
-    //         const missingSections = structure
-    //             .map(section => section.title)
-    //             .filter(title => !lesson.includes(title));
 
-    //         if (missingSections.length > 0) {
-    //             issues.push(`Missing section titles in lesson text: ${missingSections.join(', ')}`);
-    //         }
-    //     } else if (!structure || !Array.isArray(structure) || structure.length === 0) {
-    //          // Allow empty structure if it was intended, maybe add check later? For now, only fail if structure *exists* but isn't followed.
-    //          // issues.push("Structure data is missing or invalid in state.");
-    //          console.warn("   Warning: No structure provided or structure is empty. Skipping structure check.");
-    //     }
-
-    //     // Check for topic keyword (simple example)
-    //     if (topic && !lesson.toLowerCase().includes(topic.toLowerCase())) {
-    //         issues.push(`Lesson text does not seem to contain the main topic: ${topic}`);
-    //     }
-
-    //     // Check for common refusal phrases (add more if needed)
-    //     const refusalPhrases = ["я не могу", "извините", "as an ai", "i cannot", "unable to provide"];
-    //     if (refusalPhrases.some(phrase => lesson.toLowerCase().includes(phrase))) {
-    //         issues.push("Lesson contains potential refusal language.");
-    //     }
-    // }
-
-    if (issues.length === 0) {
-        console.log("   Quality Check Result: PASSED");
-        return { verdict: "Pass", issues: [] };
-    } else {
-        console.log(`   Quality Check Result: FAILED - Issues: ${issues.join('; ')}`);
-        return { verdict: "Fail", issues };
+    const parsedLesson = LessonSchema.safeParse({ lesson });
+    if (!parsedLesson.success) {
+        const issue = `Failed to parse lesson as JSON: ${parsedLesson.error.message}`;
+        console.error(`   Quality Check Result: FAILED - ${issue}`);
+        return { verdict: "Fail", issues: [issue] };
     }
+
+    if (parsedLesson.data.lesson.length < 2) {
+        const issue = `Lesson has too few blocks (${parsedLesson.data.lesson.length}). Expected at least 2.`;
+        console.error(`   Quality Check Result: FAILED - ${issue}`);
+        return { verdict: "Fail", issues: [issue] };
+    }
+
+    // count characters for every content from 'paragraph' block
+    const characterCount = parsedLesson.data.lesson.reduce((total, block) => {
+        if (block.type === "paragraph") {
+            return total + block.content.length;
+        }
+        return total;
+    }, 0);
+    console.log(`   Total Characters in Lesson: ${characterCount}`);
+
+    console.log("   Quality Check Result: PASSED");
+    return { verdict: "Pass", issues: [] };
 };
 
 /**
@@ -354,30 +334,27 @@ const decideNextStepAfterGeneration = (state) => {
  */
 const saveLessonNode = async (state) => {
     console.log(`[LangGraph] Save Lesson Node`);
-    if (!state.lesson) {
+    // check if state.lesson is array and empty
+    if (!state.lesson || !Array.isArray(state.lesson) || state.lesson.length === 0) {
         // Should not happen if quality gate passed, but good check
         throw new Error("Pizdec! Trying to save empty lesson.");
     }
 
     const { subject, topic, sub_topic, grade, lesson } = state;
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    console.log("   Connected to MongoDB");
-    
-    // Создаем новый урок
-    const result = await client.db('DatabaseAi').collection('lessons').insertOne({
+
+    const newLesson = new Lesson({
         subject,
         topic,
         sub_topic,
         grade,
         content: lesson,
-        createdAt: new Date(),
-    });
+        created_at: new Date(),
+    })
+
+    const result = await newLesson.save();
     console.log("   Lesson Saved Successfully!");
-    console.log("   Lesson ID:", result.insertedId.toString());
-    await client.close();
-    console.log("   MongoDB Connection Closed");
-    return { lessonId: result.insertedId.toString() };
+    console.log("   Lesson ID:", result._id.toString());
+    return { lessonId: result._id.toString() };
 };
 
 // --- Graph Definition ---
@@ -412,155 +389,4 @@ const app = graph.compile({ checkpointer });
 
 console.log("[LangGraph] Lesson Creator Agent Graph Compiled!");
 
-const main = async() => {
-    const initialState = {
-        subject: "Математика",
-        topic: "Алгебра",
-        "sub_topic": "Рациональные числа",
-        "grade": 8,
-        "structure":  [
-  { "title": "Введение",
-   "description": "Здесь важно показать ключевые моменты темы, как их использовать на практике. Для рациональных чисел можно упомянуть в качестве начала процесса изучения основной темы, ее значимость для более крупномасштабных научно-технических открытий и просто поддержания баланса экономических расходов."
-  },
-  {
-   "title": "Основные понятия",
-    "description": "Здесь можно рассказать о разновидностях рациональных чисел - целых, натуральных и не натуральных чисел, их взаимосвязь, поставить основной пример. Научить видеть как положительное/отрицательное числовое значение можно показывая различные точки на числовой прямой, где можно проиллюстрировать отрицательные значения (напротив положительного на числом поле) или использовать наглядный способ для положительных и отрицательных целых."
-  },
-  {
-    "title": "Работа с числовой прямой",
-    "description": "Научить визуально ориентироваться между отрицательными/положительными/држатическими значениями и почувствовать расстояние (символизируемое, например, в магических кругах)"
-  },
-  {
-    "title": "Краткосрочные арифметические операции",
-   "description": "Научить ввод с начала элементов в учебной ситуацией. Потребность для выполнения сложение и вычитание различных отрицательных или положительных значений будет объясняться простым реальным примером: за сколько лет ребенок станет выше, чем мама (рекурсивные уроки) при разных годах жизни их обеих?"
-  },
-  {
-   "title": "Обработка дробей в повседневной практике",
-    "description": "Навигацию между дробями можно увязать с пониманием различных значений - процентах (получено от того-то и надо получить тому-то, промокотка из печеночной капусты или гормон роста)"
-  },
-  {
-    "title": "Проговорки на примерах и задания",
-   "description": "Устно опять вы сможете объяснить ключевые термины: нулыши - 0 (которого несомненно стоит научиться считать!), папе - приблизительный числа которые мы используем, килломаркс – то в пределах мили; десятоцельги-мамои 5 или менее и наивеликийми или унизлик - дробные частичности меньше чем " }
-  ],
-  context: `Какую дробь называют рациональной? Приведите пример.
-Дайте определение тождества. Приведите пример.
-Сформулируйте и докажите основное свойство дроби.
-Сформулируйте правило об изменении знака перед дробью.
-—,am Рациональные дроби
-
-ВЕ
- 
-КВАДРАТНЫЕ
- 
-КОРНИ
-При изучении этой главы вы узнаете, что кроме известных вам
-рациональных чисел существуют ещё и так называемые иррациональ-
-ные числа. Эти числа вместе с рациональными числами образуют
-множество действительных чисел. Вы познакомитесь с понятием ква-
-дратного корня, изучите свойства арифметических квадратных кор-
-ней, научитесь применять их в вычислениях и преобразованиях,
-а также рассмотрите свойства и график функции, которая задаётся
-фФормулой у = ух.
-ЧЕСКИЙ КВАДРАТНЫЙ КОРЕНЬ
-10. Действительные числа
-До сих пор при изучении алгебры вы имели дело только с ра-
-циональными числами. Известно, что всякое рациональное число
-может быть представлено в виде дроби -, где m — целое число, а
-л
-п — натуральное число, upwqém одно и TO e рациональное число
-можно представить в таком виде разными способами.
-—
-3 6 12,_ _-12. -8, 4
-Haupumep, = 10" 3o’ 1,2= o= 7=
-o-‘|-1
-?.
-Для рациональных чисел используют также десятичные пред-
-
-ВЕСЕ КВАДРАТНЫЕ KOPHU
-При изучении этой главы вы узнаете, что кроме известных вам
-рациональных чисел существуют ещё и так называемые иррациональ-
-ные числа. Эти числа вместе с рациональными числами образуют
-множество действительных чисел. Вы познакомитесь с понятием ква-
-дратного корня, изучите свойства арифметических квадратных кор-
-ней, научитесь применять их в вычислениях и преобразованиях,
-а также рассмз;рите свойства и график функции, которая задаётся
-Формулой у = ух.
-О ПАРИФМЕТИЧЕСКИЙ КВАДРАТНЫЙ КОРЕНЬ
-10. Действительные числа
-До сих пор при изучении алгебры вы имели дело только с ра-
-циональными числами. Известно, что всякое рациональное число
-может быть представлено в виде дроби TM где т — целое число, а
-л
-п — натуральное число, upuqém одно и TO же рациональное число
-можно представить B таком виде разными способами.
-=
- 
-6
- 
--
- 
-12.
-_12-
- 
-2
--
- 
-=
- 
-Н
-=
- 
-==
- 
-—2.
-3 _ 6 _ 12. 12 _6_7_
-5 10 20’ 10 5 —Ll
-—а
-Например,
-Для рациональных чисел используют также десятичные пред-
-
-Рациональное уравнение, в котором и левая, и правая части явля-
-ются целыми выражениями, называют целым. Рациональное урав-
-нение, в котором левая или правая часть является дробным выра-
-жением, называют дробным.
-Так, уравнение
-2x + 5 = 3(8 - x)
-целое, а уравнения
-5 х-4 х- 9
-х-;=—3х+19 и 2х+1= х
-дробные рациональные.
-Пример 1. Решим целое уравнение
-х-1 ‚ дх_ х
-2 з 6
-» Умножим обе части уравнения на наименьший общий знамена-
-тель входящих в него дробей, т. е. на число 6. Получим урав-
-нение, равносильное данному, He содержащее дробей:
-З3(е — 1) + 4x = 5х.
-Решив ero, найдём, что х = 1,5. <
-Пример 2. Решим дробное рациональное уравнение
-х-8 1 x+5_ (1)
-х
- 
--5
- 
-х
- 
-о
- 
-х(х-5)
-» По аналогии с предыдущим примером умножим обе части урав-
-нения на общий знаменатель дробей, т. е. на выражение х(х — 5).
-Получим целое уравнение
-х(х — 3) + х - 5 = х + 5. (2)
-Понятно, что каждый корень уравнения (1) является корнем
-уравнения (2). Но уравнение (2) может быть не равносильно`
-    };
-
-    const result = await generateLessonNode(initialState);
-    console.log("Generated Lesson0:", result);
-}
-
-main();
-
-// Use module.exports for CommonJS environments
 module.exports = { lessonCreatorAgent: app };

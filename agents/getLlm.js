@@ -49,11 +49,17 @@ const llmProviders = {
 const getLlm = ({
     model = 'GigaChat-2-Max',
     streaming = true,
-    provider = 'gigachat'
+    provider = 'gigachat',
+    temperature = null,
+    maxTokens = null,
+    topP = null
 }) => {
     const llm = llmProviders[provider]
     llm.model = model;
     llm.streaming = streaming;
+    llm.temperature = temperature;
+    llm.maxTokens = maxTokens;
+    llm.topP = topP;
 
     return llm;
 }
