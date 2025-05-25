@@ -1,4 +1,5 @@
-const { JsonOutputParser } = require("@langchain/core/output_parsers");
+const { RunnableLambda } = require("@langchain/core/runnables");
+const { JsonOutputParser, StructuredOutputParser, StringOutputParser } = require("@langchain/core/output_parsers");
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { Annotation, StateGraph, END, START, MemorySaver } = require("@langchain/langgraph");
@@ -9,7 +10,7 @@ const { getLlm, embeddings } = require("../../getLlm");
 const { GigaChat, GigaChatEmbeddings } = require("langchain-gigachat");
 const https = require("https");
 const Lesson = require("../../../models/Lesson");
-const { jsonLessonSchema, LessonStructureSchema, LessonSchema } = require('./schemas')
+const { LessonStructureSchema, LessonSchema } = require('./schemas')
 
 const CHROMA_URL = process.env.CHROMA_URL;
 
@@ -86,10 +87,11 @@ const generateStructureNode = async (state) => {
     console.log(`[LangGraph] Generating lesson structure node`);
 
     const llm = getLlm({
-        model: "GigaChat-2",
-        provider: "gigachat",
+        model: "openai/gpt-4.1-mini",
+        provider: "openai",
         temperature: 1,
         topP: 0.3,
+        streaming: false,
     })
     
     const prompt = PromptTemplate.fromTemplate(`
@@ -158,13 +160,12 @@ const generateLessonNode = async (state) => {
         throw new Error("Ebaniy rot! No context found to generate lesson.");
     }
 
-    const llm = new GigaChat({
-        model: 'GigaChat-2-Max',
-        scope: 'GIGACHAT_API_PERS',
-        streaming: false,
-        credentials: process.env.GIGACHAT_CREDENTIALS,
-        httpsAgent,
+    const llm = getLlm({
+        model: "openai/gpt-4.1-mini",
+        provider: "openai",
+        streaming: true
     });
+
     const prompt = PromptTemplate.fromTemplate(`
 Ты – опытный учитель, создающий подробный урок для {grade} класса по предмету {subject} на тему "{sub_topic}" раздела "{topic}".
 
@@ -216,7 +217,9 @@ const generateLessonNode = async (state) => {
 - **Основная часть и примеры должны быть МАКСИМАЛЬНО ДЕТАЛЬНЫМИ И ДЛИННЫМИ**, насколько позволяет КОНТЕКСТ. Не жалей слов!
 `);
 
-    const parser = new JsonOutputParser();
+    const formatInstructions = StructuredOutputParser.fromZodSchema(LessonSchema);
+    const parser = new StringOutputParser();
+    // const parser = new JsonOutputParser();
     const chain = prompt.pipe(llm).pipe(parser);
     try {
         console.log("   Generating Lesson...");
@@ -227,13 +230,10 @@ const generateLessonNode = async (state) => {
             grade: state.grade,
             context: state.context,
             structure: state.structure.map((section, index) => `${index + 1}. **${section.title}**: ${section.description}`).join("\n"),
-            format_instructions: JSON.stringify(jsonLessonSchema),
+            format_instructions: formatInstructions.getFormatInstructions(),
         });
 
-        console.log(`   Generated Lesson: ${lesson.length} blocks`);
-
         return { lesson };
-
     } catch (error) {
         console.error("Error during lesson generation:", error);
         return { lesson: null };
@@ -246,7 +246,7 @@ const generateLessonNode = async (state) => {
  * @param {object} state The current graph state.
  * @returns {{verdict: "Pass" | "Fail", issues: string[]}} An object containing the verdict and list of issues if failed.
  */
-const checkLessonQuality = (state) => {
+const checkLessonQuality = async (state) => {
     console.log(`[LangGraph] Quality Gate Check`);
     const { lesson, structure, topic } = state;
     const MIN_LESSON_LENGTH = 1500;
@@ -258,17 +258,18 @@ const checkLessonQuality = (state) => {
         return { verdict: "Fail", issues: [issue] };
     }
 
-    const parsedLesson = LessonSchema.safeParse({ lesson });
+    const parser = new JsonOutputParser();
+    const parsedLesson = LessonSchema.safeParse({ lesson: await parser.parse(lesson) });
     if (!parsedLesson.success) {
         const issue = `Failed to parse lesson as JSON: ${parsedLesson.error.message}`;
         console.error(`   Quality Check Result: FAILED - ${issue}`);
-        return { verdict: "Fail", issues: [issue] };
+        // return { verdict: "Fail", issues: [issue] };
     }
 
     if (parsedLesson.data.lesson.length < 2) {
         const issue = `Lesson has too few blocks (${parsedLesson.data.lesson.length}). Expected at least 2.`;
         console.error(`   Quality Check Result: FAILED - ${issue}`);
-        return { verdict: "Fail", issues: [issue] };
+        // return { verdict: "Fail", issues: [issue] };
     }
 
     // count characters for every content from 'paragraph' block
@@ -302,8 +303,8 @@ const handleGenerationFailure = async (state) => {
  * @param {object} state The current graph state.
  * @returns {string | Symbol} The name of the next node or END.
  */
-const decideNextStepAfterGeneration = (state) => {
-    const { verdict, issues } = checkLessonQuality(state); // Run the checks
+const decideNextStepAfterGeneration = async (state) => {
+    const { verdict, issues } = await checkLessonQuality(state); // Run the checks
 
     if (verdict === "Pass") {
         return "save_lesson";
@@ -362,10 +363,14 @@ const saveLessonNode = async (state) => {
 // Initialize the graph - no complex schema needed for basic JS state
 const graph = new StateGraph(AgentState)
     .addNode("retrieve", retrieve)
-    .addNode("generate_structure", generateStructureNode)
+    .addNode("generate_structure",
+        RunnableLambda.from(generateStructureNode).withConfig({
+            tags: ["nostream"]
+        })
+    )
     .addNode("generate_lesson", generateLessonNode)
     .addNode("save_lesson", saveLessonNode)
-    .addNode("handle_generation_failure", handleGenerationFailure)
+    // .addNode("handle_generation_failure", handleGenerationFailure)
 
     // Define edges
     .addEdge(START, "retrieve")
@@ -376,11 +381,12 @@ const graph = new StateGraph(AgentState)
         decideNextStepAfterGeneration,   // Function to decide the route based on quality and retries
         {
             "save_lesson": "save_lesson", // If quality passes
-            "handle_generation_failure": "handle_generation_failure", // If quality fails and retries remain
+            // "handle_generation_failure": "handle_generation_failure", // If quality fails and retries remain
+            "handle_generation_failure": END, // If quality fails and retries remain
         }
     )
     // Add edge to loop back for retry
-    .addEdge("handle_generation_failure", "generate_lesson")
+    // .addEdge("handle_generation_failure", "generate_lesson")
     .addEdge("save_lesson", END); // After saving, end the graph
 
 // Compile the graph

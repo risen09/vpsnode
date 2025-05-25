@@ -11,44 +11,32 @@ const { z } = require('zod');
  * @param {number} grade - The grade of the lesson
  * @returns {string} The generated lesson id
  */
-router.post('/createLesson-stream', async (req, res) => {
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
+router.get('/createLesson-stream', async (req, res) => {
+    const { subject, topic, sub_topic, grade } = req.query;
+    console.log(`[API /lesson-creator/createLesson] Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Recommended for Nginx/Apache proxies
 
-    // Optional: Send an initial comment to keep connection open
-    res.write(': Connected\n\n');
-
-    // Handle client disconnection
-    req.on('close', () => {
-      console.log('Client disconnected');
-      // You might need logic here to signal the graph execution to stop if possible
-      res.end();
-      return;
-    });
-
-    console.log('Starting graph execution stream...');
-
-    const { subject, topic, sub_topic, grade } = req.body;
-    console.log(`[API /lesson-creator/createLesson] Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
+    console.log('[API /lesson-creator/createLesson] Starting graph execution stream...');
 
     const schema = z.object({
       subject: z.string(),
       topic: z.string(),
       sub_topic: z.string(),
-      grade: z.number().min(5).max(12),
+      // grade: z.number().min(5).max(12),
     });
 
     const { success } = schema.safeParse({ subject, topic, sub_topic, grade });
 
     if (!success) {
-      res.write(`data: ${JSON.stringify({ error: 'Invalid data types' })}\n\n`);
+      res.write(`error: error\ndata: ${JSON.stringify({ error: 'Invalid data types' })}\n\n`);
       res.end();
       return;
     }
 
+    const controller = new AbortController();
     let threadId = null;
 
     try {
@@ -62,28 +50,31 @@ router.post('/createLesson-stream', async (req, res) => {
         grade,
       }
 
+      res.write(`event:metadata\ndata: ${JSON.stringify(params)}\n\n`);
+
       const config = {
         configurable: {
           thread_id: threadId,
         },
-        streamMode: ['messages', 'updates'],
+        streamMode: 'messages',
+        signal: controller.signal,
       }
 
-      console.log(`   Invoking agent with params: ${params} and config: ${config}`);
+      console.log(`   Invoking agent with params: ${JSON.stringify(params)} and config: ${JSON.stringify(config)}`);
       const stream = await lessonCreatorAgent.stream(params, config);
-      for await (const [streamMode, chunk] of stream) {
-        console.log(`   ${streamMode}: ${JSON.stringify(chunk)}`);
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      for await (const [message, _metadata] of stream) {
+        res.write(`data: ${JSON.stringify({ chunk: message.content })}\n\n`);
       }
-
-      res.write(': End of stream\n\n');
-      res.end();
-      return;
+      req.on('close', () => {
+        console.log(`   Closing connection`);
+        controller.abort();
+      });
     } catch (error) {
       console.error(`   Error creating lesson:`, error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.write(`error: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+    } finally {
+      console.log(`   Closing connection`);
       res.end();
-      return;
     }
 });
 

@@ -32,6 +32,12 @@ router.get("/:id", async (req, res) => {
     console.log("[API /lessons/:id] Connected to MongoDB");
     const db = client.db("DatabaseAi");
     const lesson = await db.collection("lessons").findOne({ _id: new ObjectId(id) });
+
+    if (!lesson) {
+      console.error("[API /lessons/:id] Lesson not found");
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+
     console.log("   Found lesson", lesson);
     res.json(lesson);
   } catch (error) {

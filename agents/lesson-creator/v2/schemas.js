@@ -58,38 +58,7 @@ const LessonSchema = z.object({
   lesson: z.array(LessonBlockSchema).describe("Блоки урока"),
 });
 
-const jsonLessonSchema = {
-  "lesson": [
-    { "blockType": "paragraph", "content": "string" },
-    {
-      "blockType": "quiz",
-      "data": {
-        "question": "string",
-        "answers": ["string"],
-        "correctAnswer": 0,
-        "explanation": "string"
-      }
-    },
-    {
-      "blockType": "plot",
-      "plotData": {
-        "plotType": "line",
-        "title": "string",
-        "xlabel": "string",
-        "ylabel": "string",
-        "series": [
-          {
-            "name": "string",
-            "points": [{ "x": 0, "y": 0 }]
-          }
-        ]
-      }
-    }
-  ]
-};
-
 module.exports = {
   LessonSchema,
   LessonStructureSchema,
-  jsonLessonSchema
 }
