@@ -217,7 +217,7 @@ const generateLessonNode = async (state) => {
     const chain = prompt.pipe(llm).pipe(parser);
     try {
         console.log("   Generating Lesson...");
-        const { lesson } = await chain.invoke({
+        const result = await chain.invoke({
             topic: state.topic,
             sub_topic: state.sub_topic,
             subject: state.subject,
@@ -227,7 +227,7 @@ const generateLessonNode = async (state) => {
             format_instructions: formatInstructions.getFormatInstructions(),
         });
 
-        return { lesson };
+        return { lesson: result };
     } catch (error) {
         console.error("Error during lesson generation:", error);
         return { lesson: null };
@@ -253,11 +253,11 @@ const checkLessonQuality = async (state) => {
     }
 
     const parser = new JsonOutputParser();
-    const parsedLesson = LessonSchema.safeParse({ lesson: await parser.parse(lesson) });
+    const parsedLesson = LessonSchema.safeParse(await parser.parse(lesson));
     if (!parsedLesson.success) {
         const issue = `Failed to parse lesson as JSON: ${parsedLesson.error.message}`;
         console.error(`   Quality Check Result: FAILED - ${issue}`);
-        // return { verdict: "Fail", issues: [issue] };
+        return { verdict: "Fail", issues: [issue] };
     }
 
     if (parsedLesson.data.lesson.length < 2) {
@@ -268,7 +268,7 @@ const checkLessonQuality = async (state) => {
 
     // count characters for every content from 'paragraph' block
     const characterCount = parsedLesson.data.lesson.reduce((total, block) => {
-        if (block.type === "paragraph") {
+        if (block.blockType === "paragraph") {
             return total + block.content.length;
         }
         return total;
