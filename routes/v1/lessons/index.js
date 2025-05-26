@@ -34,8 +34,13 @@ router.get("/:id", async (req, res) => {
     const lesson = await db.collection("lessons").findOne({ _id: new ObjectId(id) });
 
     if (!lesson) {
-      console.error("[API /lessons/:id] Lesson not found");
+      console.error("  Lesson not found");
       return res.status(404).json({ error: "Lesson not found" });
+    }
+
+    if (!lesson.content || lesson.content.length === 0) {
+      console.warn("  Lesson content is empty");
+      return res.status(404).json({ error: "Lesson content is empty" });
     }
 
     console.log("   Found lesson", lesson);

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { lessonCreatorAgent } = require('../../../agents/lesson-creator/v2/index');
 const { z } = require('zod');
+const Lesson = require('../../../models/Lesson');
 
 /**
  * @route POST /createLesson-stream
@@ -11,30 +12,35 @@ const { z } = require('zod');
  * @param {number} grade - The grade of the lesson
  * @returns {string} The generated lesson id
  */
-router.get('/createLesson-stream', async (req, res) => {
-    const { subject, topic, sub_topic, grade } = req.query;
-    console.log(`[API /lesson-creator/createLesson] Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
+router.get('/:lessonId', async (req, res) => {
+    const { lessonId } = req.params;
+    console.log(`[API /lesson-creator/createLesson] Received request for lesson with ID: ${lessonId}`);
+
+    const lesson = await Lesson.findById(lessonId);
+    const { subject, topic, sub_topic, grade } = lesson;
+
+    console.log(`  Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    console.log('[API /lesson-creator/createLesson] Starting graph execution stream...');
+    // res.setHeader('Connection', 'keep-alive');
 
     const schema = z.object({
       subject: z.string(),
       topic: z.string(),
       sub_topic: z.string(),
-      // grade: z.number().min(5).max(12),
+      grade: z.number().min(5).max(11),
     });
 
     const { success } = schema.safeParse({ subject, topic, sub_topic, grade });
 
     if (!success) {
-      res.write(`error: error\ndata: ${JSON.stringify({ error: 'Invalid data types' })}\n\n`);
+      res.write(`event: error\ndata: ${JSON.stringify({ error: 'Invalid data types' })}\n\n`);
       res.end();
       return;
     }
+
+    console.log('  Starting graph execution stream...');
 
     const controller = new AbortController();
     let threadId = null;
@@ -71,71 +77,13 @@ router.get('/createLesson-stream', async (req, res) => {
       });
     } catch (error) {
       console.error(`   Error creating lesson:`, error);
-      res.write(`error: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.write(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
     } finally {
       console.log(`   Closing connection`);
       res.end();
     }
 });
 
-
-/**
- * @route POST /api/lesson-creator/createLesson
- * @desc Create a lesson for a given subject and topic
- * @param {string} subject - The subject of the lesson
- * @param {string} topic - The topic of the lesson
- * @param {string} sub_topic - The sub topic of the lesson
- * @param {number} grade - The grade of the lesson
- * @returns {string} The generated lesson id
- */
-router.post('/createLesson', async (req, res) => {
-    const { subject, topic, sub_topic, grade } = req.body;
-    console.log(`[API /lesson-creator/createLesson] Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
-
-    const schema = z.object({
-      subject: z.string(),
-      topic: z.string(),
-      sub_topic: z.string(),
-      grade: z.number().min(5).max(12),
-    });
-
-    const { success } = schema.safeParse({ subject, topic, sub_topic, grade });
-
-    if (!success) {
-      return res.status(400).json({ error: 'Invalid data types' });
-    }
-
-    let threadId = null;
-
-    try {
-      threadId = crypto.randomUUID();
-      console.log(`   Thread ID: ${threadId}`);
-
-      const params = {
-        subject,
-        topic,
-        sub_topic,
-        grade,
-      }
-
-      const config = {
-        configurable: {
-          thread_id: threadId,
-        },
-      }
-
-      console.log(`   Invoking agent with params: ${params} and config: ${config}`);
-      const result = await lessonCreatorAgent.invoke(params, config);
-      console.log(`   Successfully invoked agent. Result lesson id:`, result.lessonId);
-
-      res.status(200).json({
-        lessonId: result.lessonId,
-      });
-    } catch (error) {
-      console.error(`   Error creating lesson:`, error);
-      res.status(500).json({ error: 'Failed to create lesson', threadId, details: error.message });
-    }
-});
 
 /**
  * Resume lesson creation after error
@@ -145,7 +93,7 @@ router.post('/createLesson', async (req, res) => {
  * @param {string} error - The error message
  * @returns {string} The generated lesson id
  */
-router.post('/resumeLesson/:threadId', async (req, res) => {
+router.post('/resume/:threadId', async (req, res) => {
   const { threadId } = req.params;
   console.log(`[API /lesson-creator/resumeLesson] Resuming lesson creation for thread id: ${threadId}`);
 
