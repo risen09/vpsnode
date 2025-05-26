@@ -336,13 +336,15 @@ const saveLessonNode = async (state) => {
     }
 
     const { subject, topic, sub_topic, grade, lesson } = state;
+    const parser = new JsonOutputParser();
+    const parsedLesson = LessonSchema.safeParse(await parser.parse(lesson));
 
     const newLesson = new Lesson({
         subject,
         topic,
         sub_topic,
         grade,
-        content: lesson,
+        content: parsedLesson.data.lesson,
         created_at: new Date(),
     })
 
