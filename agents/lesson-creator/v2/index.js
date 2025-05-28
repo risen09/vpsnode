@@ -330,21 +330,22 @@ const decideNextStepAfterGeneration = async (state) => {
 const saveLessonNode = async (state) => {
     console.log(`[LangGraph] Save Lesson Node`);
     // check if state.lesson is array and empty
-    if (!state.lesson || !Array.isArray(state.lesson) || state.lesson.length === 0) {
+    if (!state.lesson) {
         // Should not happen if quality gate passed, but good check
         throw new Error("Pizdec! Trying to save empty lesson.");
     }
 
-    const { subject, topic, sub_topic, grade, lesson } = state;
+    const { lessonId, subject, topic, sub_topic, grade, lesson } = state;
     const parser = new JsonOutputParser();
-    const parsedLesson = LessonSchema.safeParse(await parser.parse(lesson));
+    const parsedLesson = LessonSchema.parse(await parser.parse(lesson));
 
     const newLesson = new Lesson({
+        _id: lessonId,
         subject,
         topic,
         sub_topic,
         grade,
-        content: parsedLesson.data.lesson,
+        content: parsedLesson.lesson,
         created_at: new Date(),
     })
 
