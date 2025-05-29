@@ -13,6 +13,7 @@
     "@langchain/core": "^0.3.51",
     "@langchain/langgraph": "^0.2.67",
     "@langchain/ollama": "^0.2.0",
+    "@langchain/openai": "^0.5.10",
     "chromadb": "^2.4.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
