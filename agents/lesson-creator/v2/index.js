@@ -181,22 +181,19 @@ const generateLessonNode = async (state) => {
 Для уроков по математике/физике можешь передать точки для построения графика, для визуального пояснения.
 Ответь только в ВАЛИДНОМ JSON формате, чтобы я смог его спарсить. Валидный JSON должен следовать такой формату:
 {format_instructions}
-Если пришешь математические формулы, то ИСПОЛЬЗУЙ СИМВОЛЫ UNICODE. НЕ ИСПОЛЬЗУЙ LaTeX! Используй текстовые формулы.
-### Примеры:  
-1. **Вход:** "Уравнение: x^2 + y^2 = r^2"
-   **Выход:** "Уравнение: x² + y² = r²"  
+Если ты пишешь LaTeX в уроке, **обязательно экранируй все специальные символы LaTeX**! Это включает:
 
-2. **Вход:** "Переменная: R_(эфф) = 5 Ом
-   **Выход:** "Переменная: Rₑₓₓ = 5 Ом"
+- \`\` (обратный слеш) должен быть экранирован как \`\\\\\`
+- \`{{\` и \`}}\` (фигурные скобки) должны быть экранированы как \`\\\\{{\` и \`\\\\}}\`
 
-3. **Вход:** Формула: E = mc^2"
-   **Выход:** "Формула: E = mc²"
+Используй ТОЛЬКО \`\\\\(\\\\)\` для математических формул, например: \`\\\\(x^2 + y^2 = r^2\\\\)\` и ТОЛЬКО \`\\\\[\\\\]\` для математических формул в отдельной строке, например: \`\\\\[x^2 + y^2 = r^2\\\\]\`.
 
-4. **Вход:** "Скорость: v = Δx/Δt"
-   **Выход:** "Скорость: v = Δx∕Δt"
+Примеры:
+1. Вход: "Уравнение: x^2 + y^2 = r^2"
+   Выход: "Уравнение: $x\\text{{\\textasciicircum}}2 + y\\text{{\\textasciicircum}}2 = r\\text{{\\textasciicircum}}2$"
+2. Вход: "Переменная: R_эфф = 5 Ом"
+   Выход: "Переменная: $R\\text{{\\_}}\\text{{эфф}} = 5 \\text{{ Ом}}$"
 
-5. **Вход:** "Матрица: A_(ij) = [a_11, a_12; a_21, a_22]"
-   **Выход:** "Матрица: Aᵢⱼ = [a₁₁, a₁₂; a₂₁, a₂₂]"
 
 ### Инструкции:
 1.  Используй предоставленный КОНТЕКСТ, чтобы РАСКРЫТЬ КАЖДЫЙ ПУНКТ ПЛАНА подробно. Не просто упоминай, а объясняй, приводи примеры из контекста. НЕ БЕРИ из КОНТЕКСТА то, что не нужно для данного урока.
@@ -226,8 +223,10 @@ const generateLessonNode = async (state) => {
             structure: state.structure.map((section, index) => `${index + 1}. **${section.title}**: ${section.description}`).join("\n"),
             format_instructions: formatInstructions.getFormatInstructions(),
         });
+        const parser = new JsonOutputParser();
+        const lesson = await parser.parse(result)
 
-        return { lesson: result };
+        return { lesson };
     } catch (error) {
         console.error("Error during lesson generation:", error);
         return { lesson: null };
@@ -252,8 +251,7 @@ const checkLessonQuality = async (state) => {
         return { verdict: "Fail", issues: [issue] };
     }
 
-    const parser = new JsonOutputParser();
-    const parsedLesson = LessonSchema.safeParse(await parser.parse(lesson));
+    const parsedLesson = LessonSchema.safeParse(lesson);
     if (!parsedLesson.success) {
         const issue = `Failed to parse lesson as JSON: ${parsedLesson.error.message}`;
         console.error(`   Quality Check Result: FAILED - ${issue}`);
@@ -335,24 +333,10 @@ const saveLessonNode = async (state) => {
         throw new Error("Pizdec! Trying to save empty lesson.");
     }
 
-    const { lessonId, subject, topic, sub_topic, grade, lesson } = state;
-    const parser = new JsonOutputParser();
-    const parsedLesson = LessonSchema.parse(await parser.parse(lesson));
-
-    const newLesson = new Lesson({
-        _id: lessonId,
-        subject,
-        topic,
-        sub_topic,
-        grade,
-        content: parsedLesson.lesson,
-        created_at: new Date(),
-    })
-
-    const result = await newLesson.save();
+    const { lessonId, subject, topic, sub_topic, grade, lesson: content } = state;
+    await Lesson.findByIdAndUpdate(lessonId, { content: content.lesson }, { runValidators: true } );
     console.log("   Lesson Saved Successfully!");
-    console.log("   Lesson ID:", result._id.toString());
-    return { lessonId: result._id.toString() };
+    return {};
 };
 
 // --- Graph Definition ---

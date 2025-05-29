@@ -16,7 +16,16 @@ router.get('/:lessonId', async (req, res) => {
     const { lessonId } = req.params;
     console.log(`[API /lesson-creator/createLesson] Received request for lesson with ID: ${lessonId}`);
 
+    if (!lessonId) {
+      return res.status(400).send('Missing lessonId');
+    }
+
     const lesson = await Lesson.findById(lessonId);
+    
+    if (!lesson) {
+      return res.status(404).send('Lesson not found');
+    }
+
     const { subject, topic, sub_topic, grade } = lesson;
 
     console.log(`  Creating lesson for ${subject} - ${topic} - ${sub_topic} - ${grade}`);
@@ -50,6 +59,7 @@ router.get('/:lessonId', async (req, res) => {
       console.log(`   Thread ID: ${threadId}`);
 
       const params = {
+        lessonId,
         subject,
         topic,
         sub_topic,

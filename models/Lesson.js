@@ -17,20 +17,20 @@ const lessonBlockSchema = new Schema({
   },
 
   // Quiz fields
-  data: {
-    type: {
+  quizData: {
+    type: new Schema({
       question: { type: String },
       answers: [{ type: String }],
       correctAnswer: { type: Number },
       explanation: { type: String }
-    },
+    }, { _id: false }),
     required: function() { return this.blockType === 'quiz'; },
     default: undefined // Only exists for quizzes
   },
 
   // Plot fields
   plotData: {
-    type: {
+    type: new Schema({
       plotType: { 
         type: String, 
         enum: ['line', 'bar', 'scatter', 'pie'] 
@@ -38,14 +38,14 @@ const lessonBlockSchema = new Schema({
       title: { type: String },
       xlabel: { type: String },
       ylabel: { type: String },
-      series: [{
+      series: [new Schema({
         name: { type: String },
-        points: [{
+        points: [new Schema({
           x: { type: Number },
           y: { type: Number }
-        }]
-      }]
-    },
+        }, { _id: false })]
+      }, { _id: false })]
+    }, { _id: false }),
     required: function() { return this.blockType === 'plot'; },
     default: undefined // Only exists for plots
   }

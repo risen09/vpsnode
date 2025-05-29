@@ -20,7 +20,7 @@ const LessonParagraphBlockSchema = LessonBaseBlockSchema.extend({
 
 const LessonQuizBlockSchema = LessonBaseBlockSchema.extend({
     blockType: z.literal("quiz"),
-    data: z.object({
+    quizData: z.object({
         question: z.string().describe("Текст вопроса"),
         answers: z.array(z.string()).describe("Варианты ответов"),
         correctAnswer: z.number().describe("Индекс правильного ответа"),
@@ -30,7 +30,7 @@ const LessonQuizBlockSchema = LessonBaseBlockSchema.extend({
 
 const LessonPlotBlockSchema = LessonBaseBlockSchema.extend({
     blockType: z.literal('plot'),
-    data: z.object({
+    plotData: z.object({
         plotType: z.enum(['line', 'bar', 'scatter', 'pie']).describe("Тип графика"),
         title: z.string().describe("Название графика"),
         xlabel: z.string().describe("Ось X графика"),
