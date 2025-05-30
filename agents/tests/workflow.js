@@ -59,7 +59,7 @@ async function retrieveQuestions(state) {
     };
 
     // Query for similar documents
-    const query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
+    let query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
 
     if (state.input.sub_topic) {
         // Convert to array if it's not already
@@ -136,14 +136,13 @@ async function generateBatchQuestions(state) {
             console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
 
             // Create a prompt template for generating test questions
-            const prompt = PromptTemplate.fromTemplate(`
+            const promptWithoutSubtopic = PromptTemplate.fromTemplate(`
             Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
             Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
             Каждый вопрос должен:
             1. Иметь один правильный ответ
-            2. Соответствовать указанной теме ({topic}), ({#if subtopic} (подтеме(ам): {subtopic}){/if}) и уровню сложности ({difficulty})
-            и уровню сложности ({difficulty}) для предмета ({subject}).
+            2. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
             3. Соответствовать уровню класса ({grade})
             4. Содержать четкое объяснение правильного ответа.
 
@@ -151,6 +150,26 @@ async function generateBatchQuestions(state) {
 
             Контекст: {context}
                 `);
+
+            const promptWithSubtopic = PromptTemplate.fromTemplate(`
+            Ты - образовательный ассистент, который создает диагностические тесты для учеников.
+
+            Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
+            Каждый вопрос должен:
+            1. Иметь один правильный ответ
+            2. Соответствовать указанной теме ({topic}), Подтеме: {subtopic} и уровню сложности ({difficulty}) для предмета ({subject}).
+            3. Соответствовать уровню класса ({grade})
+            4. Содержать четкое объяснение правильного ответа.
+
+            Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
+
+            Контекст: {context}
+                `);
+
+
+            const prompt = state.input.subtopic ? promptWithSubtopic : promptWithoutSubtopic;
+
+            console.log(prompt);
                 
 
             const questionsSchema = z.object({
@@ -235,12 +254,21 @@ async function saveGeneratedQuestions(state) {
 async function generateTestTitle(state) {
     console.log(`[LangGraph] Generating test title for ${state.questions.length} questions (${state.input.subject}/${state.input.topic} ${state.input.difficulty})`);
     
-    const prompt = PromptTemplate.fromTemplate(`
-    Сгенерируй название теста для предмета {subject} по теме {topic}, ({#if subtopic} (подтеме(ам): {subtopic}){/if}) на уровне сложности {difficulty}.
+    let prompt = PromptTemplate.fromTemplate(`
+    Сгенерируй название теста для предмета {subject} по теме {topic}, на уровне сложности {difficulty}.
 
     Вопросы:
     {questions}
     `);
+
+    if(state.input.subtopic){
+        prompt = PromptTemplate.fromTemplate(`
+        Сгенерируй название теста для предмета {subject} по теме {topic}, подтеме: {subtopic} на уровне сложности {difficulty}.
+
+        Вопросы:
+        {questions}
+        `);
+    }
 
     const structuredModel = giga.withStructuredOutput(z.object({
         testTitle: z.string().describe("Название теста"),
