@@ -51,6 +51,7 @@ router.post('/addQuestions', async (req, res) => {
  * @param {object} req.body.required - Request body.
  * @param {string} req.body.subject.required - The subject area.
  * @param {string} req.body.topic.required - The specific topic.
+ * @param {string} req.body.sub_topic - The specific sub-topic.
  * @param {string} req.body.difficulty.required - The desired difficulty level.
  * @param {string} req.body.grade.required - The grade level.
  * @param {number} [req.body.numQuestions=5] - The number of questions (defaults to 5).
@@ -77,7 +78,7 @@ router.post("/startInitialTest", async (req, res, next) => {
         }
         
         // Extract validated parameters
-        const { subject, topic, difficulty, numQuestions, grade } = validatedParams.data;
+        const { subject, topic, sub_topic, difficulty, numQuestions, grade } = validatedParams.data;
 
         console.log(`[API /tests] Received RAG request: Subject=${subject}, Topic=${topic}, Difficulty=${difficulty}, NumQuestions=${numQuestions}, Grade=${grade}`);
 
@@ -89,6 +90,7 @@ router.post("/startInitialTest", async (req, res, next) => {
             const params = {
                 subject,
                 topic, 
+                sub_topic,
                 difficulty,
                 grade,
                 numQuestions,

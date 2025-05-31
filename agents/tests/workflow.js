@@ -59,7 +59,23 @@ async function retrieveQuestions(state) {
     };
 
     // Query for similar documents
-    const query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
+    let query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
+
+    if (state.input.sub_topic) {
+        // Convert to array if it's not already
+        const subTopics = state.input.sub_topic.split(', ');
+        
+        // Add $or condition for sub_topics
+        whereClause["$and"].push({
+            "$or": subTopics.map(subTopic => ({ "sub_topic": { "$eq": subTopic } }))
+        });
+        
+        // Update query string
+        query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Подтемы: ${state.input.sub_topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
+        
+        console.log(query);
+    }
+
     const results = await vectorStore.similaritySearchWithScore(
         query,
         state.input.numQuestions,
@@ -120,13 +136,13 @@ async function generateBatchQuestions(state) {
             console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
 
             // Create a prompt template for generating test questions
-            const prompt = PromptTemplate.fromTemplate(`
+            const promptTemplate = PromptTemplate.fromTemplate(`
             Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
             Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
             Каждый вопрос должен:
             1. Иметь один правильный ответ
-            2. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
+            2. Соответствовать указанной теме ({topic}){subtopicPart} и уровню сложности ({difficulty}) для предмета ({subject}).
             3. Соответствовать уровню класса ({grade})
             4. Содержать четкое объяснение правильного ответа.
 
@@ -134,7 +150,8 @@ async function generateBatchQuestions(state) {
 
             Контекст: {context}
                 `);
-                
+
+            const subtopicPart = state.input.subtopic ? `, подтеме: ${state.input.subtopic}` : '';
 
             const questionsSchema = z.object({
                 questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
@@ -142,13 +159,14 @@ async function generateBatchQuestions(state) {
 
             const structuredModel = giga.withStructuredOutput(questionsSchema);
 
-            const chain = prompt.pipe(structuredModel);
+            const chain = promptTemplate.pipe(structuredModel);
 
             // Execute the chain
             const result = await chain.invoke({
                 context: state.questions.map(question => question.questionText).join('\n'),
                 subject: state.input.subject,
                 topic: state.input.topic,
+                subtopicPart,
                 difficulty: state.input.difficulty,
                 count: questionsNeeded,
                 grade: state.input.grade,
@@ -217,12 +235,21 @@ async function saveGeneratedQuestions(state) {
 async function generateTestTitle(state) {
     console.log(`[LangGraph] Generating test title for ${state.questions.length} questions (${state.input.subject}/${state.input.topic} ${state.input.difficulty})`);
     
-    const prompt = PromptTemplate.fromTemplate(`
-    Сгенерируй название теста для предмета {subject} по теме {topic} на уровне сложности {difficulty}.
+    let prompt = PromptTemplate.fromTemplate(`
+    Сгенерируй название теста для предмета {subject} по теме {topic}, на уровне сложности {difficulty}.
 
     Вопросы:
     {questions}
     `);
+
+    if(state.input.subtopic){
+        prompt = PromptTemplate.fromTemplate(`
+        Сгенерируй название теста для предмета {subject} по теме {topic}, подтеме: {subtopic} на уровне сложности {difficulty}.
+
+        Вопросы:
+        {questions}
+        `);
+    }
 
     const structuredModel = giga.withStructuredOutput(z.object({
         testTitle: z.string().describe("Название теста"),
@@ -233,6 +260,7 @@ async function generateTestTitle(state) {
     const { testTitle } = await chain.invoke({
         subject: state.input.subject,
         topic: state.input.topic,
+        subtopic: state.input.sub_topic,
         difficulty: state.input.difficulty,
         questions: JSON.stringify(state.questions.map(q => ({
             questionText: q.questionText
@@ -257,6 +285,7 @@ async function createTest(state) {
         testTitle: state.testTitle,
         subject: state.input.subject,
         topic: state.input.topic,
+        sub_topic: state.input.sub_topic,
         grade: state.input.grade,
         difficulty: state.input.difficulty,
         createdAt: new Date(),
