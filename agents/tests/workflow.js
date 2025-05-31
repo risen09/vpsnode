@@ -136,13 +136,13 @@ async function generateBatchQuestions(state) {
             console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
 
             // Create a prompt template for generating test questions
-            const promptWithoutSubtopic = PromptTemplate.fromTemplate(`
+            const promptTemplate = PromptTemplate.fromTemplate(`
             Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
             Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
             Каждый вопрос должен:
             1. Иметь один правильный ответ
-            2. Соответствовать указанной теме ({topic}) и уровню сложности ({difficulty}) для предмета ({subject}).
+            2. Соответствовать указанной теме ({topic}){subtopicPart} и уровню сложности ({difficulty}) для предмета ({subject}).
             3. Соответствовать уровню класса ({grade})
             4. Содержать четкое объяснение правильного ответа.
 
@@ -151,26 +151,7 @@ async function generateBatchQuestions(state) {
             Контекст: {context}
                 `);
 
-            const promptWithSubtopic = PromptTemplate.fromTemplate(`
-            Ты - образовательный ассистент, который создает диагностические тесты для учеников.
-
-            Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
-            Каждый вопрос должен:
-            1. Иметь один правильный ответ
-            2. Соответствовать указанной теме ({topic}), Подтеме: {subtopic} и уровню сложности ({difficulty}) для предмета ({subject}).
-            3. Соответствовать уровню класса ({grade})
-            4. Содержать четкое объяснение правильного ответа.
-
-            Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
-
-            Контекст: {context}
-                `);
-
-
-            const prompt = state.input.subtopic ? promptWithSubtopic : promptWithoutSubtopic;
-
-            console.log(prompt);
-                
+            const subtopicPart = state.input.subtopic ? `, подтеме: ${state.input.subtopic}` : '';
 
             const questionsSchema = z.object({
                 questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
@@ -178,14 +159,14 @@ async function generateBatchQuestions(state) {
 
             const structuredModel = giga.withStructuredOutput(questionsSchema);
 
-            const chain = prompt.pipe(structuredModel);
+            const chain = promptTemplate.pipe(structuredModel);
 
             // Execute the chain
             const result = await chain.invoke({
                 context: state.questions.map(question => question.questionText).join('\n'),
                 subject: state.input.subject,
-                subtopic: state.input.sub_topic,
                 topic: state.input.topic,
+                subtopicPart,
                 difficulty: state.input.difficulty,
                 count: questionsNeeded,
                 grade: state.input.grade,
