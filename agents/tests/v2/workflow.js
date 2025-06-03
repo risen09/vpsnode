@@ -2,18 +2,14 @@
  * LangGraph implementation for test generation
  */
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
-const { QuestionSchema, TestSchema } = require("./schemas");
+// const { initializeVectorStore, addDocumentsToVectorStore } = require("../vectorstore");
+const { QuestionSchema, TestSchema } = require("../schemas");
 const { MongoClient } = require('mongodb');
-const { giga } = require('../../routes/v1/agents/llm');
+const { giga } = require('../../../routes/v1/agents/llm');
 const { z } = require('zod');
 const { Annotation, START, END, StateGraph, MemorySaver } = require('@langchain/langgraph');
-
-let vectorStore = null;
-
-initializeVectorStore().then(store => {
-    vectorStore = store;
-});
+const { shuffleArray } = require('../../../utils/agents');
+const { SUBTOPICS } = require("../cirriculumData");
 
 // Define the state graph with initial state structure
 const state = Annotation.Root({
@@ -45,68 +41,66 @@ const state = Annotation.Root({
   }),
 });
 
-// Node 1: Retrieve questions from vector store
+// Node 1: Retrieve questions from MongoDB
 async function retrieveQuestions(state) {
-    console.log(`[LangGraph] Retrieving questions for ${state.input.subject}/${state.input.topic}, grade ${state.input.grade}`);
+    console.log(`[LangGraph] Retrieving questions from MongoDB for ${state.input.subject}/${state.input.topic}, grade ${state.input.grade}`);
     
-    // Define filter for vector store
-    const whereClause = {
-        "$and": [
-            { "subject": { "$eq": state.input.subject } },
-            { "topic": { "$eq": state.input.topic } },
-            { "grade": { "$eq": state.input.grade } }
-        ]
+    // Подключение к MongoDB
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+
+    const questionsCollection = client.db('DatabaseAi').collection('diagnosticQuestions');
+
+    // Строим фильтр для запроса
+    const filter = {
+        subject: state.input.subject,
+        topic: state.input.topic,
+        grade: state.input.grade,
+        difficulty: state.input.difficulty
     };
 
-    // Query for similar documents
-    let query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
-
+    // Добавляем подтемы, если они указаны
     if (state.input.sub_topic) {
-        // Convert to array if it's not already
-        const subTopics = state.input.sub_topic.split(', ');
-        
-        // Add $or condition for sub_topics
-        whereClause["$and"].push({
-            "$or": subTopics.map(subTopic => ({ "sub_topic": { "$eq": subTopic } }))
-        });
-        
-        // Update query string
-        query = `Предмет: ${state.input.subject}, Тема: ${state.input.topic}, Подтемы: ${state.input.sub_topic}, Уровень сложности: ${state.input.difficulty}, Класс: ${state.input.grade}`;
-        
-        console.log(query);
+        const subTopics = state.input.sub_topic.split(',');
+        filter.sub_topic = { $in: subTopics };
     }
 
-    const results = await vectorStore.similaritySearchWithScore(
-        query,
-        state.input.numQuestions,
-        whereClause
-    );
+    try {
+        // Получаем ВСЕ вопросы, соответствующие фильтру
+        const allQuestions = await questionsCollection.find(filter).toArray();
+        
+        console.log(`[LangGraph] Found ${allQuestions.length} matching questions in MongoDB`);
 
-    console.log(`[LangGraph] Retrieved ${results.length} questions from vector store`);
-    
-    const retrievedQuestions = results.map(([doc, score]) => {
-        // if (score < 0.8) {
-        //   return null;
-        // }
-        try {
-            return QuestionSchema.parse({
-                grade: doc.metadata.grade,
-                sub_topic: doc.metadata.sub_topic,
-                topic: doc.metadata.topic,
-                questionText: doc.metadata.questionText,
-                options: JSON.parse(doc.metadata.options),
-                correctOptionIndex: +doc.metadata.correctOptionIndex,
-                explanation: doc.metadata.explanation
-            });
-        } catch (error) {
-            console.warn(`[LangGraph] Retrieved question validation failed:`, error.message);
-            return null;
-        }
-    });
+        // Перемешиваем вопросы
+        const shuffledQuestions = shuffleArray(allQuestions);
 
-    return {
-        questions: retrievedQuestions
-    };
+        // Берем нужное количество вопросов
+        const selectedQuestions = shuffledQuestions.slice(0, state.input.numQuestions);
+
+        // Преобразуем в нужный формат и валидируем
+        const retrievedQuestions = selectedQuestions.map(question => {
+            try {
+                return QuestionSchema.parse({
+                    grade: question.grade,
+                    sub_topic: question.sub_topic,
+                    topic: question.topic,
+                    questionText: question.questionText,
+                    options: question.options,
+                    correctOptionIndex: question.correctOptionIndex,
+                    explanation: question.explanation
+                });
+            } catch (error) {
+                console.warn(`[LangGraph] Retrieved question validation failed:`, error.message);
+                return null;
+            }
+        }).filter(q => q !== null);
+
+        return {
+            questions: retrievedQuestions
+        };
+    } finally {
+        await client.close();
+    }
 }
 
 // Node 2: Check if we need to generate more questions
@@ -125,6 +119,17 @@ async function generateBatchQuestions(state) {
     // Implement retry logic for batch generation
     let attempts = 0;
     const maxAttempts = 3;
+
+    const allSubtopics = SUBTOPICS[state.input.topic] || [];
+
+    // 2. Выбираем 3 случайные уникальные подтемы
+    const getRandomSubtopics = (count) => {
+        const shuffled = [...allSubtopics].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, count);
+    };
+
+    const randomSubtopics = getRandomSubtopics(3);
+    const possibleSubtopics = randomSubtopics.map(st => st.name).join(', ');
     
     while (attempts < maxAttempts) {
         try {
@@ -145,13 +150,20 @@ async function generateBatchQuestions(state) {
             2. Соответствовать указанной теме ({topic}){subtopicPart} и уровню сложности ({difficulty}) для предмета ({subject}).
             3. Соответствовать уровню класса ({grade})
             4. Содержать четкое объяснение правильного ответа.
+            {subtopicInstruction}
 
             Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
 
             Контекст: {context}
                 `);
 
-            const subtopicPart = state.input.subtopic ? `, подтеме: ${state.input.subtopic}` : '';
+            const subtopicPart = state.input.sub_topic ? `, подтеме: ${state.input.subtopic}` : '';
+            
+            const subtopicInstruction = state.input.sub_topic
+                ? `ВАЖНО: Каждый вопрос должен относиться к подтемам "${state.input.sub_topic}". Используй только эти подтемы.`
+                : `ВАЖНО: Каждый вопрос должен относиться к подтемам: ${possibleSubtopics}. Используй только эти подтемы.`;
+
+            console.log(subtopicInstruction);
 
             const questionsSchema = z.object({
                 questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
@@ -167,6 +179,7 @@ async function generateBatchQuestions(state) {
                 subject: state.input.subject,
                 topic: state.input.topic,
                 subtopicPart,
+                subtopicInstruction,
                 difficulty: state.input.difficulty,
                 count: questionsNeeded,
                 grade: state.input.grade,
@@ -206,6 +219,8 @@ async function saveGeneratedQuestions(state) {
     
     const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
+
+    console.log(state.generatedQuestions);
     
     // Insert questions into MongoDB
     const result = await client.db('DatabaseAi').collection('diagnosticQuestions').insertMany(
@@ -218,15 +233,7 @@ async function saveGeneratedQuestions(state) {
             grade: state.input.grade
         }))
     );
-    
-    // Get IDs of saved questions
-    const questionIds = Object.values(result.insertedIds).map(id => id.toString());
-    console.log(`[LangGraph] Saved ${questionIds.length} questions with IDs: ${questionIds.join(', ')}`);
-    
-    // Add to vector store
-    await addDocumentsToVectorStore(vectorStore, questionIds);
-    console.log(`[LangGraph] Added questions to vector store`);
-    
+
     await client.close();
     return {};
 }
