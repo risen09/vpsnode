@@ -46,6 +46,8 @@ app.use('/api/lessons', authenticate, require('./routes/v1/lessons/index'));
 app.use('/api/users', authenticate, require('./routes/v1/users'));
 // Добавляем маршрут для работы с одним пользователем
 app.use('/api/user', authenticate, require('./routes/v1/user'));
+// Добавляем маршрут для работы с заданиями
+app.use('/api/v1/assignments', authenticate, require('./routes/v1/assignments/index'));
 // Маршруты для гигачата
 app.use('/api/gigachat', authenticate, require('./routes/v1/gigachat'));
 
