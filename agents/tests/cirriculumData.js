@@ -1,4 +1,4 @@
-export const SUBJECTS = [
+const SUBJECTS = [
     { id: 'math', name: 'Математика' },
     { id: 'physics', name: 'Физика' },
     { id: 'english', name: 'Английский язык' },
@@ -6,7 +6,7 @@ export const SUBJECTS = [
     { id: 'cs', name: 'Информатика' },
 ];
 
-export const TOPICS = {
+const TOPICS = {
     math: [
         { id: 'algebra', name: 'Алгебра' },
         { id: 'geometry', name: 'Геометрия' },
@@ -49,13 +49,13 @@ export const TOPICS = {
     ],
 };
 
-export const DIFFICULTIES = [
+const DIFFICULTIES = [
     { id: 'basic', name: 'Базовый' },
     { id: 'intermediate', name: 'Средний' },
     { id: 'advanced', name: 'Продвинутый' },
 ];
 
-export const SUBTOPICS = {
+const SUBTOPICS = {
     algebra: [
         { id: 'linear', name: 'Линейные уравнения' },
         { id: 'quadratic', name: 'Квадратные уравнения' },
@@ -149,4 +149,11 @@ export const SUBTOPICS = {
         { id: 'cosmology', name: 'Космология' },
         { id: 'black_holes', name: 'Черные дыры' },
     ],  
+}; 
+
+module.exports = {
+    SUBJECTS,
+    TOPICS,
+    DIFFICULTIES,
+    SUBTOPICS
 }; 

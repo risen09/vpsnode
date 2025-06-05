@@ -116,96 +116,55 @@ async function generateBatchQuestions(state) {
     
     console.log(`[LangGraph] Generating ${questionsNeeded} questions in batch`);
     
-    // Implement retry logic for batch generation
-    let attempts = 0;
-    const maxAttempts = 3;
+    // Create a prompt template for generating test questions
+    const promptTemplate = PromptTemplate.fromTemplate(`
+    Ты - образовательный ассистент, который создает диагностические тесты для учеников.
 
-    const allSubtopics = SUBTOPICS[state.input.topic] || [];
+    Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
+    Каждый вопрос должен:
+    1. Иметь один правильный ответ
+    2. Соответствовать указанной теме ({topic}){subtopicPart} и уровню сложности ({difficulty}) для предмета ({subject}).
+    3. Соответствовать уровню класса ({grade})
+    4. Содержать четкое объяснение правильного ответа.
 
-    // 2. Выбираем 3 случайные уникальные подтемы
-    const getRandomSubtopics = (count) => {
-        const shuffled = [...allSubtopics].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, count);
-    };
+    Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
 
-    const randomSubtopics = getRandomSubtopics(3);
-    const possibleSubtopics = randomSubtopics.map(st => st.name).join(', ');
-    
-    while (attempts < maxAttempts) {
-        try {
+    Контекст: {context}
+        `);
 
-            attempts++;
-            console.log(`[LangGraph] Generation attempt ${attempts}/${maxAttempts}`);
+    const subtopicPart = state.input.subtopic ? `, подтеме: ${state.input.subtopic}` : '';
+
+    const questionsSchema = z.object({
+        questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
+    });
+
+    const structuredModel = giga.withStructuredOutput(questionsSchema);
+
+    const chain = promptTemplate.pipe(structuredModel);
+
+    try {
+        console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
+
+        // Execute the chain
+        const result = await chain.invoke({
+            context: state.questions.map(question => question.questionText).join('\n'),
+            subject: state.input.subject,
+            topic: state.input.topic,
+            subtopicPart,
+            difficulty: state.input.difficulty,
+            count: questionsNeeded,
+            grade: state.input.grade,
+        });
             
-            // Call the existing generation function
-            console.log(`[LLM] Generating ${questionsNeeded} questions for ${state.input.subject}/${state.input.topic} (${state.input.difficulty})`);
-
-            // Create a prompt template for generating test questions
-            const promptTemplate = PromptTemplate.fromTemplate(`
-            Ты - образовательный ассистент, который создает диагностические тесты для учеников.
-
-            Твоя задача - сгенерировать {count} вопросов по заданной теме для диагностического теста.
-            Каждый вопрос должен:
-            1. Иметь один правильный ответ
-            2. Соответствовать указанной теме ({topic}){subtopicPart} и уровню сложности ({difficulty}) для предмета ({subject}).
-            3. Соответствовать уровню класса ({grade})
-            4. Содержать четкое объяснение правильного ответа.
-            {subtopicInstruction}
-
-            Используй escape-символы для символов в LaTeX, например: $\\\\frac{{a}}{{b}}$, вместо $\\frac{{a}}{{b}}$.
-
-            Контекст: {context}
-                `);
-
-            const subtopicPart = state.input.sub_topic ? `, подтеме: ${state.input.subtopic}` : '';
-            
-            const subtopicInstruction = state.input.sub_topic
-                ? `ВАЖНО: Каждый вопрос должен относиться к подтемам "${state.input.sub_topic}". Используй только эти подтемы.`
-                : `ВАЖНО: Каждый вопрос должен относиться к подтемам: ${possibleSubtopics}. Используй только эти подтемы.`;
-
-            console.log(subtopicInstruction);
-
-            const questionsSchema = z.object({
-                questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
-            });
-
-            const structuredModel = giga.withStructuredOutput(questionsSchema);
-
-            const chain = promptTemplate.pipe(structuredModel);
-
-            // Execute the chain
-            const result = await chain.invoke({
-                context: state.questions.map(question => question.questionText).join('\n'),
-                subject: state.input.subject,
-                topic: state.input.topic,
-                subtopicPart,
-                subtopicInstruction,
-                difficulty: state.input.difficulty,
-                count: questionsNeeded,
-                grade: state.input.grade,
-            });
-                
-            return {
-                questions: result.questions,
-                generatedQuestions: result.questions,
-            };
-        } catch (error) {
-            console.log(`[LangGraph] Failed to generate questions on attempt ${attempts}`);
-            console.log(error);
-
-            if (attempts >= maxAttempts) {
-                console.log(`[LangGraph] Failed to generate questions after ${maxAttempts} attempts`);
-                throw new Error(`Failed to generate questions after ${maxAttempts} attempts`);
-            }
-
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+        return {
+            questions: result.questions,
+            generatedQuestions: result.questions,
+        };
+    } catch (error) {
+        console.log(`[LangGraph] Failed to generate questions`);
+        console.log(error);
+        throw error; // Пробрасываем ошибку для обработки retry policy на уровне графа
     }
-    
-    return {
-        questions: []
-    };
 }
 
 // Node 4: Save generated questions to MongoDB and vector store
@@ -236,47 +195,6 @@ async function saveGeneratedQuestions(state) {
 
     await client.close();
     return {};
-}
-
-// Node 5: Generate test title
-async function generateTestTitle(state) {
-    console.log(`[LangGraph] Generating test title for ${state.questions.length} questions (${state.input.subject}/${state.input.topic} ${state.input.difficulty})`);
-    
-    let prompt = PromptTemplate.fromTemplate(`
-    Сгенерируй название теста для предмета {subject} по теме {topic}, на уровне сложности {difficulty}.
-
-    Вопросы:
-    {questions}
-    `);
-
-    if(state.input.subtopic){
-        prompt = PromptTemplate.fromTemplate(`
-        Сгенерируй название теста для предмета {subject} по теме {topic}, подтеме: {subtopic} на уровне сложности {difficulty}.
-
-        Вопросы:
-        {questions}
-        `);
-    }
-
-    const structuredModel = giga.withStructuredOutput(z.object({
-        testTitle: z.string().describe("Название теста"),
-    }));
-    
-    const chain = prompt.pipe(structuredModel);
-    
-    const { testTitle } = await chain.invoke({
-        subject: state.input.subject,
-        topic: state.input.topic,
-        subtopic: state.input.sub_topic,
-        difficulty: state.input.difficulty,
-        questions: JSON.stringify(state.questions.map(q => ({
-            questionText: q.questionText
-        })))
-    });
-
-    return {
-        testTitle
-    };
 }
 
 // Node 6: Create test with title
@@ -319,9 +237,20 @@ async function createTest(state) {
 const workflow = new StateGraph(state);
 
 workflow.addNode("retrieveQuestions",  retrieveQuestions);
-workflow.addNode("generateBatchQuestions", generateBatchQuestions);
+workflow.addNode("generateBatchQuestions", generateBatchQuestions, {retryPolicy: {
+    retryOn: (e) => {
+        // Повторяем только при определенных ошибках
+        if (e.message.includes('Failed to generate questions') || 
+            e.message.includes('LLM timeout') || 
+            e instanceof RateLimitError) {
+            return true;
+        }
+        return false;
+    },
+    maxRetries: 3,
+    delay: 1000
+}});
 workflow.addNode("saveGeneratedQuestions", saveGeneratedQuestions);
-workflow.addNode("generateTestTitle", generateTestTitle);
 workflow.addNode("createTest", createTest);
 
 // Define the edges in the graph
@@ -335,8 +264,7 @@ workflow.addConditionalEdges(
     }
 );
 workflow.addEdge("generateBatchQuestions", "saveGeneratedQuestions");
-workflow.addEdge("saveGeneratedQuestions", "generateTestTitle");
-workflow.addEdge("generateTestTitle", "createTest");
+workflow.addEdge("saveGeneratedQuestions", "createTest");
 workflow.addEdge("createTest", END);
 
 // Compile the graph
