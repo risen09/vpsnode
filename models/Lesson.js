@@ -83,6 +83,7 @@ lessonBlockSchema.pre('save', async function(next) {
         });
         const savedAssignment = await assignment.save();
         this.assignmentRef = savedAssignment._id;
+        this.parent().assignment_id = savedAssignment._id;
         return next();
       } catch (err) {
         return next(err);
@@ -112,6 +113,11 @@ const lessonSchema = new Schema({
     type: [lessonBlockSchema],
     required: true,
     default: []
+  },
+  assignment_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Assignment',
+    default: undefined
   }
 }, { collection: 'lessons', strict: false });
 

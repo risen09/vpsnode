@@ -45,6 +45,7 @@ router.get("/:trackId", async (req, res) => {
       lessons: lessons.map((lesson) => ({
         _id: lesson._id.toString(),
         sub_topic: lesson.sub_topic,
+        assignment_id: lesson.assignment_id?.toString(),
       })),
     });
   } catch (error) {
