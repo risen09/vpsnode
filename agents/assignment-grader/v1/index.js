@@ -3,9 +3,14 @@ const { getLlm } = require("../../getLlm");
 const Assignment = require("../../../models/Assignment");
 const Submission = require("../../../models/Submission");
 const {ReviewSchema} = require("./schemas");
-const {PromptTemplate} = require("@langchain/core/prompts");
+const {PromptTemplate, ChatPromptTemplate, MessagesPlaceholder} = require("@langchain/core/prompts");
+const {HumanMessage, AIMessage, SystemMessage} = require("@langchain/core/messages");
 
 const AgentState = Annotation.Root({
+    messages: Annotation({
+        reducer: (state, value) => [...state, ...value],
+        default: () => [],
+    }),
     assignmentId: Annotation({
         default: () => ""
     }),
@@ -52,9 +57,55 @@ const getAssignmentTask = async (state) => {
     return { task };
 }
 
+const getSubmissionsHistory = async (state, config) => {
+    console.log(`[Assignment-Grader Agent] Getting Submissions History for Assignment ID: ${state.assignmentId} and Task Index: ${state.taskIndex}`);
+    const { assignmentId, taskIndex } = state;
+    if (!assignmentId) {
+        throw new Error("Assignment ID is required");
+    }
+    if (taskIndex < 0) {
+        throw new Error("Task index must be a non-negative integer");
+    }
+
+    const { userId } = config.configurable;
+    if (!userId) {
+        throw new Error("User ID is required to get submissions history");
+    }
+
+    const submissions = await Submission.find({
+        assignment_id: assignmentId,
+        task_index: taskIndex,
+        user_id: userId
+    }).populate({
+        path: "assignment_id",
+        model: "Assignment",
+    }).sort({ submitted_at: -1 });
+
+    if (submissions.length === 0) {
+        console.warn(`No submissions found for Assignment ID: ${assignmentId} and Task Index: ${taskIndex}`);
+        return {};
+    }
+
+    const messages = submissions.reduce((acc, submission) => {
+        acc.push(new HumanMessage({
+            content: `
+Решение ученика:
+${submission.submission}
+                `
+        }));
+        acc.push(new AIMessage({
+            content: JSON.stringify(submission.review)
+        }));
+        return acc;
+    }, []);
+
+    console.log(`   Successfully Got Submissions History for Assignment ID: ${assignmentId} and Task Index: ${taskIndex}`);
+    return { messages };
+}
+
 const reviewSubmission = async (state) => {
     console.log(`[Assignment-Grader Agent] Reviewing Submission for Assignment ID: ${state.assignmentId} and Task Index: ${state.taskIndex}`);
-    const { submission, task } = state;
+    const { messages, submission, task } = state;
     if (!submission) {
         throw new Error("Submission is required for review");
     }
@@ -68,26 +119,35 @@ const reviewSubmission = async (state) => {
         streaming: false
     });
 
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = ChatPromptTemplate.fromMessages([
+        new SystemMessage(`
 Ты — школьный учитель. Проверь и проанализируй решение ученика по указанной задаче, оцени его ответ и предложи конструктивную обратную связь.
 
 Задача:
-{task}
+${task.task}
 Ответ:
-{solution}
+${task.solution}
 
 Решение ученика:
-{submission}
+{{submission}}
 
 Ошибки и недочёты должны быть выявлены с указанием причин, а предложенная подсказка должна помочь ученику улучшить своё решение.
-    `);
+        `),
+        new MessagesPlaceholder("history"),
+        new HumanMessage({
+            content: `
+Решение ученика:
+${submission}
+            `
+        })
+    ]);
     const structuredModel = model.withStructuredOutput(ReviewSchema);
     const chain = prompt.pipe(structuredModel);
 
     const review = await chain.invoke({
         task: task.task,
         solution: task.solution,
-        submission: submission
+        history: messages,
     });
 
     return { review };
@@ -148,17 +208,20 @@ const saveSubmission = async (state, config) => {
     });
 
     await newSubmission.save();
+    console.log(`   Successfully Saved Submission for Assignment ID: ${state.assignmentId} and Task Index: ${state.taskIndex}`);
     return {};
 };
 
 // --- State Graph ---
 const graph = new StateGraph(AgentState)
     .addNode("getAssignmentTask", getAssignmentTask)
+    .addNode("getSubmissionsHistory", getSubmissionsHistory)
     .addNode("reviewSubmission", reviewSubmission)
     .addNode("giveFeedback", giveFeedback)
     .addNode("saveSubmission", saveSubmission)
     .addEdge(START, "getAssignmentTask")
-    .addEdge("getAssignmentTask", "reviewSubmission")
+    .addEdge("getAssignmentTask", "getSubmissionsHistory")
+    .addEdge("getSubmissionsHistory", "reviewSubmission")
     .addEdge("reviewSubmission", "giveFeedback")
     .addEdge("giveFeedback", "saveSubmission")
     .addEdge("saveSubmission", END)
