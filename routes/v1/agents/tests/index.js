@@ -181,7 +181,7 @@ router.get('/:id', async (req, res) => {
             _id: new ObjectId(id)
         });
 
-        console.log(`[API /tests] Test found: ${JSON.stringify(test)}`);
+        console.log(`[API /tests] Test found: ${test.subject}`);
         
         await client.close();
         
