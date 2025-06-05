@@ -5,6 +5,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const https = require('https');
 const z = require('zod');
 const Lesson = require("../../../models/Lesson");
+const {generateLearningPlan} = require("./generateLearningPlan");
 // Assume Track model is available if needed for saving later
 // const Track = require('../../../models/Track'); // Adjust path as needed
 
@@ -44,6 +45,9 @@ const state = Annotation.Root({
   }),
   summarizedWeaknesses: Annotation({
     default: () => null
+  }),
+  learningPlan: Annotation({
+    default: () => []
   }),
   foundLessonIds: Annotation({
     default: () => []
@@ -267,12 +271,12 @@ async function summarizeWeaknesses(state) {
  */
 async function findExistingLessons(state) {
   console.log("--- Node: findExistingLessons ---");
-  const { weakTopics } = state;
+  const { learningPlan } = state;
 
   const foundLessonIds = [];
   const topicsNeedingLessons = [];
 
-  if (weakTopics.length === 0) {
+  if (learningPlan.length === 0) {
       console.log("[Graph] No weaknesses identified, skipping lesson search.");
       return { foundLessonIds, topicsNeedingLessons };
   }
@@ -283,22 +287,27 @@ async function findExistingLessons(state) {
     console.log(`[Graph] Connected to MongoDB for lesson search`);
     const lessonsCollection = client.db('DatabaseAi').collection('lessons'); // Assuming 'lessons' collection
 
-    for (const [_, weakness] of weakTopics) {
-      // Simple search for now, might need more sophisticated matching
-      const query = { topic: weakness.topic };
-       if (weakness.sub_topic && weakness.sub_topic !== 'general') {
-            query.sub_topic = weakness.sub_topic;
-       }
-      const foundLesson = await lessonsCollection.findOne(query, { projection: { _id: 1 } }); // Find one for simplicity
-
+    for (const weakness of learningPlan) {
+      const query = { 
+        topic: weakness.topic,
+        title: weakness.title
+      };
+      
+      if (weakness.sub_topic && weakness.sub_topic !== 'general') {
+        query.sub_topic = weakness.sub_topic;
+      }
+    
+      const foundLesson = await lessonsCollection.findOne(query, { projection: { _id: 1 } });
+    
       if (foundLesson) {
-        console.log(`[Graph] Found existing lesson for ${weakness.topic}/${weakness.sub_topic}: ${foundLesson._id}`);
-        foundLessonIds.push(foundLesson._id);
+        console.log(`[Graph] Found existing lesson for ${weakness.title} (${weakness.topic}/${weakness.sub_topic}): ${foundLesson._id}`);
+        foundLessonIds.push({ lesson: foundLesson._id, priority: weakness.priority });
       } else {
-        console.log(`[Graph] No existing lesson found for ${weakness.topic}/${weakness.sub_topic}`);
+        console.log(`[Graph] No existing lesson found for ${weakness.title}`);
         topicsNeedingLessons.push(weakness);
       }
     }
+
     await client.close();
     console.log(`[Graph] Disconnected from MongoDB`);
   } catch (err) {
@@ -423,7 +432,7 @@ async function requestNewLessons(state) {
     const result = await newLesson.save();
     console.log(`[Graph] New lesson created with ID: ${result._id}`);
 
-    learningTrack.lessons.push(result._id);
+    learningTrack.lessons.push({lesson: result._id, priority: topic.priority});
     console.log(`[Graph] New lesson saved in Track`);
   };
 
@@ -489,6 +498,7 @@ workflow.addNode("analyze_failures", analyzeFailures);
 workflow.addNode("summarize_weaknesses", summarizeWeaknesses);
 workflow.addNode("find_existing_lessons", findExistingLessons);
 workflow.addNode("create_track_structure", createTrackStructure);
+workflow.addNode("generate_learning_plan", generateLearningPlan);
 workflow.addNode("request_new_lessons", requestNewLessons);
 workflow.addNode("save_track", saveTrack);
 workflow.addNode("error_handler", handleError);
@@ -498,7 +508,8 @@ workflow.addEdge(START, "load_test_data");
 workflow.addEdge("load_test_data", "grade_answers");
 workflow.addEdge("grade_answers", "analyze_failures");
 workflow.addEdge("analyze_failures", "summarize_weaknesses");
-workflow.addEdge("summarize_weaknesses", "find_existing_lessons");
+workflow.addEdge("summarize_weaknesses", "generate_learning_plan");
+workflow.addEdge("generate_learning_plan", "find_existing_lessons");
 workflow.addEdge("find_existing_lessons", "create_track_structure");
 
 // Conditional edge after creating structure

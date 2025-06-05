@@ -6,7 +6,8 @@ const { initializeVectorStore, addDocumentsToVectorStore } = require("../../../.
 const { app } = require("../../../../agents/tests/v2/workflow"); // Import the LangGraph workflow
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
-const { runDiagnosis, graph } = require("../../../../agents/test-diagnostics/v2");
+const { runDiagnosis, graph } = require("../../../../agents/test-diagnostics/v3");
+
 let vectorStore = null;
 
 // Call initialization function

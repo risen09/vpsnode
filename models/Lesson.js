@@ -55,6 +55,7 @@ const lessonBlockSchema = new Schema({
 });
 
 const lessonSchema = new Schema({
+  title: {type: String, required: false},
   subject: { type: String, required: true },
   topic: { type: String, required: true },
   sub_topic: { type: String },

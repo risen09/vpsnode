@@ -36,7 +36,7 @@ router.get("/:trackId", async (req, res) => {
       return res.status(404).json({ error: "Track not found" });
     }
     console.log("   Found track");
-    const lessonObjectIds = track.lessons.map((lesson) => new ObjectId(lesson));
+    const lessonObjectIds = track.lessons.map((lesson) => new ObjectId(lesson.lesson));
     const lessons = await Lesson.find({ _id: { $in: lessonObjectIds } })
     console.log("   Found lessons " + lessons.length);
     const { lessonIds, ...rest } = track;
