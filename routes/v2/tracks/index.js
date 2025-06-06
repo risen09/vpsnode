@@ -49,31 +49,27 @@ router.get("/:trackId", async (req, res) => {
       .find({ _id: { $in: lessonObjectIds } })
       .toArray();
 
-    // Создаем маппинг уроков
-    const lessonsMap = new Map();
-    lessons.forEach(lesson => {
-      lessonsMap.set(lesson._id.toString(), {
-        _id: lesson._id.toString(),
-        title: lesson.title,
-        subject: lesson.subject,
-        topic: lesson.topic,
-        sub_topic: lesson.sub_topic,
-        content: lesson.content,
-        difficulty: lesson.difficulty,
-      });
-    });
-
-    // Формируем ответ
     const response = {
       ...track,
       _id: track._id.toString(),
       createdAt: track.createdAt.toISOString(),
-      lessons: track.lessons.map(trackLesson => ({
-        lesson: lessonsMap.get(trackLesson.lesson.toString()),
-        priority: trackLesson.priority
-      })),
-      
+      lessons: track.lessons.map(trackLesson => {
+        const lesson = lessons.find(l => l._id.toString() === trackLesson.lesson.toString());
+        return {
+          lesson: lesson ? {
+            _id: lesson._id.toString(),
+            title: lesson.title,
+            subject: lesson.subject,
+            topic: lesson.topic,
+            sub_topic: lesson.sub_topic,
+            content: lesson.content,
+            difficulty: lesson.difficulty
+          } : null,
+          priority: trackLesson.priority
+        };
+      })
     };
+      
 
     res.json(response);
     
