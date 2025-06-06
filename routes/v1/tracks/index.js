@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require("mongodb");
 const { lessonCreatorAgent } = require('../../../agents/lesson-creator/graph');
+const {Track} = require('../../../models/Track');
+const {Lesson} = require('../../../models/Lesson');
 
 router.get("/", async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI);
@@ -22,41 +24,39 @@ router.get("/", async (req, res) => {
 });
 
 router.get("/:trackId", async (req, res) => {
-  const client = new MongoClient(process.env.MONGODB_URI);
   const { trackId } = req.params;
   const { _id: userId } = req.user;
+  
   try {
-    await client.connect();
-    console.log("[API /tracks] Connected to MongoDB");
-    const db = client.db("DatabaseAi");
-    const track = await db.collection("tracks").findOne({_id: new ObjectId(trackId), userId});
-
+    console.log("[API /tracks] Fetching track with lessons");
+    
+    const track = await Track.findOne({ _id: trackId, userId }).lean();
+    
     if (!track) {
       return res.status(404).json({ error: "Track not found" });
     }
-    console.log("   Found track");
+    console.log("[API /tracks] Found track");
 
-    console.log("   Tracks lessons", track.lessons);
-    const lessonObjectIds = track.lessons.map((lesson) => new ObjectId(lesson));
-    const lessons = await db.collection("lessons").find({ _id: { $in: lessonObjectIds } }).toArray();
-    console.log("   Found lessons " + lessons.length);
+    console.log("[API /tracks] Track lessons", track.lessons);
+    
+    const lessons = await Lesson.find({ 
+      _id: { $in: track.lessons } 
+    }).select('_id subject topic grade content').lean();
+    
+    console.log("[API /tracks] Found lessons " + lessons.length);
+    
     const { lessonIds, ...rest } = track;
     res.json({
       ...rest,
-      lessons: lessons.map((lesson) => ({
-        _id: lesson._id.toString(),
-        subject: lesson.subject,
-        topic: lesson.topic,
-        grade: lesson.grade,
-        content: lesson.content,
-      })),
+      lessons: lessons.map(lesson => ({
+        ...lesson,
+        _id: lesson._id.toString()
+      }))
     });
+    
   } catch (error) {
-    console.error("[API /tracks] Error fetching singe track", error);
+    console.error("[API /tracks] Error fetching single track", error);
     res.status(500).json({ error: "Failed to fetch single track" });
-  } finally {
-    await client.close();
-    console.log("[API /tracks] Closed MongoDB connection");
   }
 });
 

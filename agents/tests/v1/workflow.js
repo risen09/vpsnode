@@ -2,10 +2,10 @@
  * LangGraph implementation for test generation
  */
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { initializeVectorStore, addDocumentsToVectorStore } = require("./vectorstore");
-const { QuestionSchema, TestSchema } = require("./schemas");
+const { initializeVectorStore, addDocumentsToVectorStore } = require("../vectorstore");
+const { QuestionSchema, TestSchema } = require("../schemas");
 const { MongoClient } = require('mongodb');
-const { giga } = require('../../routes/v1/agents/llm');
+const { giga } = require('../../../routes/v1/agents/llm');
 const { z } = require('zod');
 const { Annotation, START, END, StateGraph, MemorySaver } = require('@langchain/langgraph');
 
@@ -75,6 +75,10 @@ async function retrieveQuestions(state) {
         
         console.log(query);
     }
+
+    const l = Math.round(Math.random() * 36);
+    const r = Math.round(Math.random() * 36);
+    query += ` random:${Math.random().toString(36).substring(l, r)}`;
 
     const results = await vectorStore.similaritySearchWithScore(
         query,

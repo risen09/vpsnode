@@ -60,19 +60,19 @@
        type: String
      },
      lessons: [{
-       type: mongoose.Schema.Types.ObjectId,
-       ref: 'Lesson'
+       lesson: {
+         type: mongoose.Schema.Types.ObjectId,
+         ref: 'Lesson'
+       },
+       priority: {
+         type: String
+       }
      }],
-     tests: [{
-       type: mongoose.Schema.Types.ObjectId,
-       ref: 'Test'
-     }],
-     schedule: ScheduleSchema,
      createdAt: {
        type: Date,
        default: Date.now
      }
-   });
+   }, { collection: 'tracks', strict: false });
 
    const Track = mongoose.model('Track', TrackSchema);
 
