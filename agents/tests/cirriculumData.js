@@ -1,0 +1,159 @@
+const SUBJECTS = [
+    { id: 'math', name: 'Математика' },
+    { id: 'physics', name: 'Физика' },
+    { id: 'english', name: 'Английский язык' },
+    { id: 'biology', name: 'Биология' },
+    { id: 'cs', name: 'Информатика' },
+];
+
+const TOPICS = {
+    math: [
+        { id: 'algebra', name: 'Алгебра' },
+        { id: 'geometry', name: 'Геометрия' },
+        { id: 'calculus', name: 'Мат. анализ' },
+        { id: 'probability', name: 'Теория вероятностей' },
+        { id: 'trigonometry', name: 'Тригонометрия' },
+        { id: 'equations', name: 'Уравнения' },
+    ],
+    physics: [
+        { id: 'mechanics', name: 'Механика' },
+        { id: 'thermo', name: 'Термодинамика' },
+        { id: 'electricity', name: 'Электричество' },
+        { id: 'optics', name: 'Оптика' },
+        { id: 'nuclear', name: 'Ядерная физика' },
+        { id: 'astrophysics', name: 'Астрофизика' },
+    ],
+    english: [
+        { id: 'grammar', name: 'Грамматика' },
+        { id: 'vocab', name: 'Лексика' },
+        { id: 'speaking', name: 'Разговорная речь' },
+        { id: 'reading', name: 'Чтение' },
+        { id: 'writing', name: 'Письмо' },
+        { id: 'ielts', name: 'Подготовка к IELTS' },
+    ],
+    biology: [
+        { id: 'cells', name: 'Клетки' },
+        { id: 'genetics', name: 'Генетика' },
+        { id: 'ecology', name: 'Экология' },
+        { id: 'anatomy', name: 'Анатомия человека' },
+        { id: 'botany', name: 'Ботаника' },
+        { id: 'evolution', name: 'Эволюция' },
+    ],
+    cs: [
+        { id: 'algorithms', name: 'Алгоритмы' },
+        { id: 'data_structures', name: 'Структуры данных' },
+        { id: 'web_dev', name: 'Веб-разработка' },
+        { id: 'python', name: 'Python' },
+        { id: 'machine_learning', name: 'Машинное обучение' },
+        { id: 'databases', name: 'Базы данных' },
+    ],
+};
+
+const DIFFICULTIES = [
+    { id: 'basic', name: 'Базовый' },
+    { id: 'intermediate', name: 'Средний' },
+    { id: 'advanced', name: 'Продвинутый' },
+];
+
+const SUBTOPICS = {
+    algebra: [
+        { id: 'linear', name: 'Линейные уравнения' },
+        { id: 'quadratic', name: 'Квадратные уравнения' },
+        { id: 'inequalities', name: 'Неравенства' },
+        { id: 'rational_numbers', name: 'Рациональные числа' },
+        { id: 'polynomials', name: 'Многочлены' },
+        { id: 'functions', name: 'Функции' },
+        { id: 'progressions', name: 'Прогрессии' },
+        { id: 'logarithms', name: 'Логарифмы' },
+        { id: 'exponents', name: 'Степени и показатели' },
+    ],
+    geometry: [
+        { id: 'triangles', name: 'Треугольники' },
+        { id: 'circles', name: 'Окружности' },
+        { id: 'polygons', name: 'Многоугольники' },
+        { id: 'angles', name: 'Углы' },
+        { id: 'area', name: 'Площадь фигур' },
+        { id: 'volume', name: 'Объем тел' },
+        { id: 'similarity', name: 'Подобие фигур' },
+        { id: 'coordinates', name: 'Координатная геометрия' },
+    ],
+    mechanics: [
+        { id: 'newton_first_law', name: 'Первый закон Ньютона' },
+        { id: 'newton_second_law', name: 'Второй закон Ньютона' },
+        { id: 'newton_third_law', name: 'Третий закон Ньютона' },
+        { id: 'kinematics', name: 'Кинематика' },
+        { id: 'dynamics', name: 'Динамика' },
+        { id: 'statics', name: 'Статика' },
+        { id: 'work_energy', name: 'Работа и энергия' },
+        { id: 'momentum', name: 'Импульс' },
+        { id: 'oscillations', name: 'Колебания' },
+        { id: 'rotational_motion', name: 'Вращательное движение' },
+    ],
+    calculus: [
+        { id: 'limits', name: 'Пределы' },
+        { id: 'derivatives', name: 'Производные' },
+        { id: 'integrals', name: 'Интегралы' },
+        { id: 'series', name: 'Ряды' },
+        { id: 'differential_equations', name: 'Дифференциальные уравнения' },
+    ],
+    probability: [
+        { id: 'combinatorics', name: 'Комбинаторика' },
+        { id: 'random_variables', name: 'Случайные величины' },
+        { id: 'distributions', name: 'Распределения' },
+        { id: 'law_of_large_numbers', name: 'Закон больших чисел' },
+        { id: 'central_limit_theorem', name: 'Центральная предельная теорема' },
+    ],
+    trigonometry: [
+        { id: 'trig_functions', name: 'Тригонометрические функции' },
+        { id: 'identities', name: 'Тождества' },
+        { id: 'equations', name: 'Тригонометрические уравнения' },
+        { id: 'graphs', name: 'Графики функций' },
+        { id: 'applications', name: 'Применения тригонометрии' },
+    ],
+    equations: [
+        { id: 'linear_eq', name: 'Линейные уравнения' },
+        { id: 'quadratic_eq', name: 'Квадратные уравнения' },
+        { id: 'systems', name: 'Системы уравнений' },
+        { id: 'exponential_eq', name: 'Показательные уравнения' },
+        { id: 'logarithmic_eq', name: 'Логарифмические уравнения' },
+    ],
+    thermo: [
+        { id: 'temperature', name: 'Температура' },
+        { id: 'heat', name: 'Теплота' },
+        { id: 'laws', name: 'Законы термодинамики' },
+        { id: 'engines', name: 'Тепловые двигатели' },
+    ],
+    electricity: [
+        { id: 'current', name: 'Электрический ток' },
+        { id: 'circuits', name: 'Электрические цепи' },
+        { id: 'magnetism', name: 'Магнетизм' },
+        { id: 'electrostatics', name: 'Электростатика' },
+        { id: 'induction', name: 'Электромагнитная индукция' },
+    ],
+    optics: [
+        { id: 'reflection', name: 'Отражение' },
+        { id: 'refraction', name: 'Преломление' },
+        { id: 'lenses', name: 'Линзы' },
+        { id: 'mirrors', name: 'Зеркала' },
+        { id: 'diffraction', name: 'Дифракция' },
+    ],
+    nuclear: [
+        { id: 'radioactivity', name: 'Радиоактивность' },
+        { id: 'fission', name: 'Деление ядра' },
+        { id: 'fusion', name: 'Термоядерный синтез' },
+        { id: 'nuclear_reactions', name: 'Ядерные реакции' },
+    ],
+    astrophysics: [
+        { id: 'stars', name: 'Звезды' },
+        { id: 'galaxies', name: 'Галактики' },
+        { id: 'cosmology', name: 'Космология' },
+        { id: 'black_holes', name: 'Черные дыры' },
+    ],  
+}; 
+
+module.exports = {
+    SUBJECTS,
+    TOPICS,
+    DIFFICULTIES,
+    SUBTOPICS
+}; 
