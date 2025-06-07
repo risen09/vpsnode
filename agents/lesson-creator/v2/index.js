@@ -139,8 +139,6 @@ const generateStructureNode = async (state) => {
             grade: state.grade,
         });
 
-        console.log("   Generated Lesson Structure:", JSON.stringify(sections, null, 2));
-
         return { structure: sections };
     } catch (e) {
         console.error("Error generating structure:", e);
@@ -190,9 +188,9 @@ const generateLessonNode = async (state) => {
 
 Примеры:
 1. Вход: "Уравнение: x^2 + y^2 = r^2"
-   Выход: "Уравнение: $x\\text{{\\textasciicircum}}2 + y\\text{{\\textasciicircum}}2 = r\\text{{\\textasciicircum}}2$"
+   Выход: "Уравнение: \\\\(x^2 + y^2 = r^2\\\\)"
 2. Вход: "Переменная: R_эфф = 5 Ом"
-   Выход: "Переменная: $R\\text{{\\_}}\\text{{эфф}} = 5 \\text{{ Ом}}$"
+   Выход: "Переменная: \\\\(R_{{эфф}} = 5 \\text{{ Ом}}\\\\)"
 
 
 ### Инструкции:
@@ -333,8 +331,14 @@ const saveLessonNode = async (state) => {
         throw new Error("Pizdec! Trying to save empty lesson.");
     }
 
-    const { lessonId, subject, topic, sub_topic, grade, lesson: content } = state;
-    await Lesson.findByIdAndUpdate(lessonId, { content: content.lesson }, { runValidators: true } );
+    const { lessonId, lesson: content } = state;
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) {
+        throw new Error(`Lesson with ID ${lessonId} not found`);
+    }
+
+    lesson.content = content.lesson;
+    await lesson.save();
     console.log("   Lesson Saved Successfully!");
     return {};
 };

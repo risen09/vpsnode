@@ -48,10 +48,22 @@ const LessonPlotBlockSchema = LessonBaseBlockSchema.extend({
     }).describe("Данные для построения графика")
 });
 
+const LessonAssignmentBlockSchema = LessonBaseBlockSchema.extend({
+    blockType: z.literal("assignment"),
+    assignmentData: z.object({
+        title: z.string().default("Домашнее задание"),
+        tasks: z.array(z.object({
+            task: z.string().describe("Текст задания"),
+            solution: z.string().describe("Решение задания"),
+        })).describe("Задачи для выполнения"),
+    }).describe("**Обязательный** блок для домашнего задания"),
+});
+
 const LessonBlockSchema = z.discriminatedUnion("blockType", [
     LessonParagraphBlockSchema,
     LessonQuizBlockSchema,
     LessonPlotBlockSchema,
+    LessonAssignmentBlockSchema,
 ]);
 
 const LessonSchema = z.object({

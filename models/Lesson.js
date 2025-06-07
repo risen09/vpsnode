@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const Assignment = require('./Assignment');
 
 const lessonBlockSchema = new Schema({
   blockType: { 
     type: String, 
     required: true,
-    enum: ["paragraph", "quiz", "plot"],  // Ensures only valid types
+    enum: ["paragraph", "quiz", "plot", "assignment"],  // Ensures only valid types
     description: "Тип блока" 
   },
 
@@ -48,11 +49,59 @@ const lessonBlockSchema = new Schema({
     }, { _id: false }),
     required: function() { return this.blockType === 'plot'; },
     default: undefined // Only exists for plots
-  }
-}, { 
+  },
+
+  // Homework assignment fields
+  assignmentRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Assignment',
+    default: undefined,
+  },
+}, {
   _id: false,  // No need for separate IDs for embedded docs
-  discriminatorKey: 'type' 
+  discriminatorKey: 'type',
 });
+
+lessonBlockSchema.virtual('assignmentData').set(function(data) {
+  this._assignmentData = data;
+}).get(function() {
+  return this._assignmentData;
+});
+
+// Improved pre-save hook
+lessonBlockSchema.pre('save', async function(next) {
+  if (this.blockType === 'assignment') {
+    // Case 1: Already has a reference - nothing to do
+    if (this.assignmentRef) return next();
+
+    // Case 2: Has assignment data - create new assignment
+    if (this._assignmentData) {
+      try {
+        const assignment = new Assignment({
+          ...this._assignmentData,
+          lessonId: this.parent()._id,
+        });
+        const savedAssignment = await assignment.save();
+        this.assignmentRef = savedAssignment._id;
+        this.parent().assignment_id = savedAssignment._id;
+        return next();
+      } catch (err) {
+        return next(err);
+      }
+    }
+
+    // Case 3: No reference and no data - error
+    return next(new Error('Assignment block requires either assignmentRef or assignmentData'));
+  }
+  next();
+});
+
+
+// Add schema-level validation
+lessonBlockSchema.path('assignmentRef').validate(function(value) {
+  if (this.blockType !== 'assignment') return true;
+  return !!value; // Must have a value if it's an assignment block
+}, 'Assignment block requires an assignment reference');
 
 const lessonSchema = new Schema({
   title: {type: String, required: false},
@@ -65,6 +114,11 @@ const lessonSchema = new Schema({
     type: [lessonBlockSchema],
     required: true,
     default: []
+  },
+  assignment_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Assignment',
+    default: undefined
   }
 }, { collection: 'lessons', strict: false });
 

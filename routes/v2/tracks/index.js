@@ -1,83 +1,43 @@
+const mongoose = require("mongoose");
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require("mongodb");
 const { lessonCreatorAgent } = require('../../../agents/lesson-creator/graph');
+const Track = require('../../../models/Track');
 const Lesson = require('../../../models/Lesson');
 
 router.get("/", async (req, res) => {
-  const client = new MongoClient(process.env.MONGODB_URI);
   const { _id: userId } = req.user;
   try {
-    await client.connect();
-    console.log("[API /tracks] Connected to MongoDB");
-    const db = client.db("DatabaseAi");
-    const tracks = await db.collection("tracks").find({userId}).toArray();
-    console.log("   Found tracks", tracks);
+		const tracks = await Track.find({ userId: new mongoose.Types.ObjectId(userId) });
     res.json(tracks);
   } catch (error) {
     console.error("[API /tracks] Error fetching tracks", error);
     res.status(500).json({ error: "Failed to fetch tracks" });
-  } finally {
-    await client.close();
-    console.log("[API /tracks] Closed MongoDB connection");
   }
 });
 
 router.get("/:trackId", async (req, res) => {
-  const client = new MongoClient(process.env.MONGODB_URI);
   const { trackId } = req.params;
   const { _id: userId } = req.user;
 
   try {
-    await client.connect();
-    const db = client.db("DatabaseAi");
-    
-    // Находим трек
-    const track = await db.collection("tracks").findOne({
-      _id: new ObjectId(trackId),
-      userId: userId
-    });
+    // Use findOne with both conditions
+    const track = await Track.findOne({
+      _id: new mongoose.Types.ObjectId(trackId),
+      userId: new mongoose.Types.ObjectId(userId)
+    }).populate("lessons.lesson", "sub_topic assignment_id");
 
     if (!track) {
+      console.log(`   Track ${trackId} of user ${userId} not found`);
       return res.status(404).json({ error: "Track not found" });
     }
+    console.log("   Found track");
+    console.log("   Found lessons " + track.lessons.length);
 
-    // Получаем ID уроков
-    const lessonObjectIds = track.lessons.map(l => new ObjectId(l.lesson));
-    
-    // Находим уроки
-    const lessons = await db.collection("lessons")
-      .find({ _id: { $in: lessonObjectIds } })
-      .toArray();
-
-    const response = {
-      ...track,
-      _id: track._id.toString(),
-      createdAt: track.createdAt.toISOString(),
-      lessons: track.lessons.map(trackLesson => {
-        const lesson = lessons.find(l => l._id.toString() === trackLesson.lesson.toString());
-        return {
-          lesson: lesson ? {
-            _id: lesson._id.toString(),
-            title: lesson.title,
-            subject: lesson.subject,
-            topic: lesson.topic,
-            sub_topic: lesson.sub_topic,
-            content: lesson.content,
-            difficulty: lesson.difficulty
-          } : null,
-          priority: trackLesson.priority
-        };
-      })
-    };
-      
-
-    res.json(response);
-    
+    res.json(track);
   } catch (error) {
     console.error("Error fetching track:", error);
     res.status(500).json({ error: "Failed to fetch track" });
-  } finally {
-    await client.close();
   }
 });
 

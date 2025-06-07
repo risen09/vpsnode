@@ -72,7 +72,7 @@
        type: Date,
        default: Date.now
      }
-   });
+   }, { collection: 'tracks', strict: false });
 
    const Track = mongoose.model('Track', TrackSchema);
 

@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { MongoClient, ObjectId } = require("mongodb");
+const Lesson = require("../../../models/Lesson");
 
 router.get("/", async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI);
@@ -30,8 +31,13 @@ router.get("/:id", async (req, res) => {
   try {
     await client.connect();
     console.log("[API /lessons/:id] Connected to MongoDB");
-    const db = client.db("DatabaseAi");
-    const lesson = await db.collection("lessons").findOne({ _id: new ObjectId(id) });
+    const lesson = await Lesson.findById(id)
+        .populate({
+          path: "content.assignmentRef",
+          model: "Assignment",
+          select: "title tasks.task"
+        })
+        .lean();
 
     if (!lesson) {
       console.error("  Lesson not found");
@@ -43,7 +49,14 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Lesson content is empty" });
     }
 
-    console.log("   Found lesson", lesson);
+    lesson.content.forEach(block => {
+      if (block.blockType === 'assignment' && block.assignmentRef) {
+        block.assignmentData = block.assignmentRef;
+        delete block.assignmentRef
+      }
+    });
+
+
     res.json(lesson);
   } catch (error) {
     console.error("[API /lessons/:id] Error fetching lesson", error);

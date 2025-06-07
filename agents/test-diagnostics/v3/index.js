@@ -6,9 +6,7 @@ const https = require('https');
 const z = require('zod');
 const { getLlm } = require('../../getLlm');
 const Lesson = require("../../../models/Lesson");
-
-// Assume Track model is available if needed for saving later
-// const Track = require('../../../models/Track'); // Adjust path as needed
+const Track = require("../../../models/Track");
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false, // Отключение проверки сертификатов НУЦ Минцифры
@@ -511,18 +509,9 @@ async function saveTrack(state) {
       return { error: "Cannot save track, structure not created." };
   }
   try {
-    // ***** ZOD VALIDATION *****
-    // You should use your Track Zod schema here to validate learningTrack before saving.
-    // const validatedTrack = TrackSchema.parse(learningTrack); // Uncomment when you have schema
-
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    console.log(`[Graph] Connected to MongoDB to save track`);
-    const result = await client.db('DatabaseAi').collection('tracks').insertOne(learningTrack); // Use validatedTrack
-    await client.close();
-    console.log(`[Graph] Disconnected from MongoDB`);
-
-    const savedTrackId = result.insertedId;
+		const newTrack = new Track(learningTrack);
+		const result = await newTrack.save(learningTrack);
+    const savedTrackId = result._id;
     console.log(`[Graph] Learning track saved successfully with ID: ${savedTrackId}`);
     return { savedTrackId: savedTrackId.toString() }; // Return the ID
   } catch (err) {
