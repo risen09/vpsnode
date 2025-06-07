@@ -110,7 +110,7 @@ router.post('/logout', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Пользователь не найден' });
   }
 
-  const accessToken = user.vkProfile.access_token;
+  const accessToken = user.vkProfile?.access_token;
   if (!accessToken) {
     console.log('[API /auth/vk/logout] no VK token found');
     return res.status(400).json({ error: 'Нет VK токена для пользователя' });

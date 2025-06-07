@@ -238,15 +238,6 @@ const workflow = new StateGraph(state);
 
 workflow.addNode("retrieveQuestions",  retrieveQuestions);
 workflow.addNode("generateBatchQuestions", generateBatchQuestions, {retryPolicy: {
-    retryOn: (e) => {
-        // Повторяем только при определенных ошибках
-        if (e.message.includes('Failed to generate questions') || 
-            e.message.includes('LLM timeout') || 
-            e instanceof RateLimitError) {
-            return true;
-        }
-        return false;
-    },
     maxRetries: 3,
     delay: 1000
 }});
