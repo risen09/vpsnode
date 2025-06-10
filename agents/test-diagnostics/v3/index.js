@@ -221,12 +221,12 @@ async function summarizeWeaknesses(state) {
     const summary = Array.from(weakTopics).map(([key, weakness]) => `${key}: ${weakness.count}`).join('\n');
     console.log(`[Graph] Summary:\n${summary}`);
 
-    const llm = new GigaChat({
+    const llm = getLlm({
       model: 'GigaChat-2',
+      provider: 'gigachat',
+      streaming: false,
       temperature: 1,
-      topP:  0.9,
-      credentials: process.env.GIGACHAT_CREDENTIALS,
-      httpsAgent: httpsAgent
+      topP: 0.9
     }).withStructuredOutput(z.object({
       summary: z.string().describe("Суть слабых мест ученика. Описание в 1 предложении.")
     }));
@@ -272,11 +272,12 @@ async function generateLearningPlan(state) {
   console.log("--- Node: generateLearningPlan ---");
   const { subject, topic, grade, summarizedWeaknesses } = state;
 
-  const llm = getLlm({
-    model: 'GigaChat-2',
-    temperature: 1,
-    streaming: false
-  }).withStructuredOutput(z.object({
+    const llm = getLlm({
+      model: 'GigaChat-2',
+      provider: 'gigachat',
+      streaming: false,
+      temperature: 1,
+    }).withStructuredOutput(z.object({
       plan: z.array(z.object({
           priority: z.enum(["Высокий", "Средний", "Низкий"]).describe("Приоритет"),
           subject: z.string().describe("Предмет"),
@@ -386,12 +387,12 @@ async function createTrackStructure(state) {
     console.log("--- Node: createTrackStructure ---");
     const { userId, subject, topic, grade, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
 
-    const llm = new GigaChat({
-      model: 'GigaChat-2',
-      temperature: 1,
-      topP:  0.9,
-      credentials: process.env.GIGACHAT_CREDENTIALS,
-      httpsAgent: httpsAgent
+    const llm = getLlm({
+        model: 'GigaChat-2',
+        provider: 'gigachat',
+        streaming: false,
+        temperature: 1,
+        topP: 0.9
     }).withStructuredOutput(z.object({
       name: z.string().describe("Яркое и запоминающееся название учебного плана."),
       description: z.string().describe("Подробное описание учебного плана.")

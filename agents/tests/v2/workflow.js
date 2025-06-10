@@ -10,6 +10,7 @@ const { z } = require('zod');
 const { Annotation, START, END, StateGraph, MemorySaver } = require('@langchain/langgraph');
 const { shuffleArray } = require('../../../utils/agents');
 const { SUBTOPICS } = require("../cirriculumData");
+const { getLlm } = require("../../getLlm");
 
 // Define the state graph with initial state structure
 const state = Annotation.Root({
@@ -138,7 +139,13 @@ async function generateBatchQuestions(state) {
         questions: z.array(QuestionSchema).nonempty().min(questionsNeeded).max(questionsNeeded)
     });
 
-    const structuredModel = giga.withStructuredOutput(questionsSchema);
+    const llm = getLlm({
+        model: 'GigaChat-2',
+        provider: 'gigachat',
+        streaming: false,
+    })
+
+    const structuredModel = llm.withStructuredOutput(questionsSchema);
 
     const chain = promptTemplate.pipe(structuredModel);
 
