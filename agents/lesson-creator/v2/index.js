@@ -154,6 +154,7 @@ const generateStructureNode = async (state) => {
  */
 const generateLessonNode = async (state) => {
     console.log(`[LangGraph] Generate Lesson Node`);
+
     if (!state.context) {
         throw new Error("Ebaniy rot! No context found to generate lesson.");
     }
@@ -207,12 +208,11 @@ const generateLessonNode = async (state) => {
 `);
 
     const formatInstructions = StructuredOutputParser.fromZodSchema(LessonSchema);
-    const parser = new StringOutputParser();
-    // const parser = new JsonOutputParser();
+    const parser = new JsonOutputParser();
     const chain = prompt.pipe(llm).pipe(parser);
     try {
         console.log("   Generating Lesson...");
-        const result = await chain.invoke({
+        const { lesson } = await chain.invoke({
             topic: state.topic,
             sub_topic: state.sub_topic,
             subject: state.subject,
@@ -221,8 +221,6 @@ const generateLessonNode = async (state) => {
             structure: state.structure.map((section, index) => `${index + 1}. **${section.title}**: ${section.description}`).join("\n"),
             format_instructions: formatInstructions.getFormatInstructions(),
         });
-        const parser = new JsonOutputParser();
-        const lesson = await parser.parse(result)
 
         return { lesson };
     } catch (error) {
@@ -249,7 +247,7 @@ const checkLessonQuality = async (state) => {
         return { verdict: "Fail", issues: [issue] };
     }
 
-    const parsedLesson = LessonSchema.safeParse(lesson);
+    const parsedLesson = LessonSchema.safeParse({lesson});
     if (!parsedLesson.success) {
         const issue = `Failed to parse lesson as JSON: ${parsedLesson.error.message}`;
         console.error(`   Quality Check Result: FAILED - ${issue}`);
@@ -323,7 +321,7 @@ const decideNextStepAfterGeneration = async (state) => {
  * @param {object} state The current graph state.
  * @returns {Promise<void>} Nothing (or perhaps confirmation state).
  */
-const saveLessonNode = async (state) => {
+const saveLessonNode = async (state, config) => {
     console.log(`[LangGraph] Save Lesson Node`);
     // check if state.lesson is array and empty
     if (!state.lesson) {
@@ -337,8 +335,10 @@ const saveLessonNode = async (state) => {
         throw new Error(`Lesson with ID ${lessonId} not found`);
     }
 
-    lesson.content = content.lesson;
+    lesson.content = content;
     await lesson.save();
+    config.writer?.({assignment_id: lesson.assignment_id})
+
     console.log("   Lesson Saved Successfully!");
     return {};
 };
@@ -353,7 +353,10 @@ const graph = new StateGraph(AgentState)
             tags: ["nostream"]
         })
     )
-    .addNode("generate_lesson", generateLessonNode)
+    .addNode("generate_lesson", generateLessonNode, {retryPolicy: {
+        maxRetries: 3,
+        delay: 1000
+    }})
     .addNode("save_lesson", saveLessonNode)
     // .addNode("handle_generation_failure", handleGenerationFailure)
 

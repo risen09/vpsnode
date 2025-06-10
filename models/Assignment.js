@@ -12,6 +12,16 @@ const assignmentSchema = new Schema({
         ref: 'Lesson',
         required: true
     },
+}, { 
+  toJSON: { virtuals: true },  // Include virtuals when converting to JSON
+  toObject: { virtuals: true } // Include virtuals when converting to plain objects
+});
+
+assignmentSchema.virtual('submissions', {
+  ref: 'Submission',
+  localField: '_id',
+  foreignField: 'assignment_id',
+  justOne: false
 });
 
 module.exports = mongoose.model('Assignment', assignmentSchema)

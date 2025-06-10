@@ -1,12 +1,27 @@
 const router = require("express").Router();
 const Assignment = require("../../../models/Assignment");
 const { agent } = require("../../../agents/assignment-grader/v1/index");
+const Submission = require("../../../models/Submission");
 
 router.get("/:id", async (req, res) => {
-  try {
-		  await new Promise(resolve => setTimeout(resolve, 1000));
+  const { _id: userId } = req.user;
+  if (!userId) {
+    return res.status(401).json({ error: "User is not authenticated" });
+  }
 
-    const assignment = await Assignment.findById(req.params.id);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const assignment = await Assignment.findById(req.params.id).populate({
+      path: 'submissions',
+      select: 'review.verdict feedback task_index submission submitted_at',
+      match: {
+        user_id: userId 
+      },
+      sort: {
+        submitted_at: -1
+      }
+    }).exec();
     res.json(assignment);
   } catch (error) {
     console.error("Error fetching assignment:", error);

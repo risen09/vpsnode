@@ -72,14 +72,19 @@ router.get('/:lessonId', async (req, res) => {
         configurable: {
           thread_id: threadId,
         },
-        streamMode: 'messages',
+        streamMode: ['custom', 'messages'],
         signal: controller.signal,
       }
 
       console.log(`   Invoking agent with params: ${JSON.stringify(params)} and config: ${JSON.stringify(config)}`);
       const stream = await lessonCreatorAgent.stream(params, config);
-      for await (const [message, _metadata] of stream) {
-        res.write(`data: ${JSON.stringify({ chunk: message.content })}\n\n`);
+      for await (const [type, chunk] of stream) {
+        if (type === 'messages') {
+          res.write(`data: ${JSON.stringify({ chunk: chunk[0].content })}\n\n`);
+        } else if (type === 'custom') {
+          console.log(`   Received custom event:`, chunk);
+          res.write(`event:metadata\ndata: ${JSON.stringify({...params, ...chunk})}\n\n`);
+        }
       }
       req.on('close', () => {
         console.log(`   Closing connection`);

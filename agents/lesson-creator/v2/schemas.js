@@ -62,7 +62,7 @@ const LessonAssignmentBlockSchema = LessonBaseBlockSchema.extend({
 const LessonBlockSchema = z.discriminatedUnion("blockType", [
     LessonParagraphBlockSchema,
     LessonQuizBlockSchema,
-    LessonPlotBlockSchema,
+    // LessonPlotBlockSchema,
     LessonAssignmentBlockSchema,
 ]);
 
