@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
         name: `${fetchedData.first_name} ${fetchedData.last_name}`,
         username: `${fetchedData.first_name.toLowerCase()}_${fetchedData.last_name.toLowerCase()}`,
         email: fetchedData.email,
-        avatar: fetchedData.avatar,
+        // avatar: fetchedData.avatar,
         gender: +(fetchedData.sex - 1),
         age: calculateAge(fetchedData.birthday),
         grade: calculateAge(fetchedData.birthday) - 6,

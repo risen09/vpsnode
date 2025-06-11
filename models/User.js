@@ -26,7 +26,7 @@ const userSchema = new Schema({
     type: Number,
     // min: 1,
     // max: 11,
-    required: true
+    // required: true
   },
   personalityType: { type: String },
   avatar: { type: String },
