@@ -54,7 +54,7 @@ router.post('/register', async (req, res) => {
 
     const newUser = new User({
       ...req.body,
-      grade,
+      // grade,
       role: 'user',
       createdAt: new Date(),
     })

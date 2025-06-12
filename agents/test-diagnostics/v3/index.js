@@ -222,8 +222,8 @@ async function summarizeWeaknesses(state) {
     console.log(`[Graph] Summary:\n${summary}`);
 
     const llm = getLlm({
-      model: 'GigaChat-2',
-      provider: 'gigachat',
+      model: 'openai/gpt-4.1-mini',
+      provider: 'openai',
       streaming: false,
       temperature: 1,
       topP: 0.9
@@ -273,8 +273,8 @@ async function generateLearningPlan(state) {
   const { subject, topic, grade, summarizedWeaknesses } = state;
 
     const llm = getLlm({
-      model: 'GigaChat-2',
-      provider: 'gigachat',
+      model: 'openai/gpt-4.1-mini',
+      provider: 'openai',
       streaming: false,
       temperature: 1,
     }).withStructuredOutput(z.object({
@@ -388,8 +388,8 @@ async function createTrackStructure(state) {
     const { userId, subject, topic, grade, foundLessonIds, summarizedWeaknesses, topicsNeedingLessons } = state;
 
     const llm = getLlm({
-        model: 'GigaChat-2',
-        provider: 'gigachat',
+        model: 'openai/gpt-4.1-mini',
+        provider: 'openai',
         streaming: false,
         temperature: 1,
         topP: 0.9

@@ -140,8 +140,8 @@ async function generateBatchQuestions(state) {
     });
 
     const llm = getLlm({
-        model: 'GigaChat-2',
-        provider: 'gigachat',
+        model: 'openai/gpt-4.1-mini',
+        provider: 'openai',
         streaming: false,
     })
 
