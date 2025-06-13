@@ -3,6 +3,7 @@ const User = require('../../../models/User');
 const { MongoClient  } = require('mongodb');
 const { basicAuth } = require('../../../middlewares/authenticate');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const { RegistrationSchema } = require('./schemas')
@@ -17,10 +18,10 @@ router.post('/login', async (req, res) => {
     if (!user) {
       return res.status(400).json({ error: 'Неверный email или пароль' });
     }
-    // const isValidPassword = await bcrypt.compare(req.body.password, user.password);
-    // if (!isValidPassword) {
-    //   return res.status(400).json({ error: 'Неверный email или пароль' });
-    // }
+    const isValidPassword = await bcrypt.compare(req.body.password, user.password);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: 'Неверный email или пароль' });
+    }
     const token = jwt.sign({
       userId: user._id,
       role: user.role || 'user'
@@ -51,10 +52,12 @@ router.post('/register', async (req, res) => {
     }
 
     const grade = req.body.age - 6;
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     const newUser = new User({
       ...req.body,
       // grade,
+      password: hashedPassword,
       role: 'user',
       createdAt: new Date(),
     })

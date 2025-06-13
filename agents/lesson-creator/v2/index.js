@@ -326,7 +326,7 @@ const saveLessonNode = async (state, config) => {
     // check if state.lesson is array and empty
     if (!state.lesson) {
         // Should not happen if quality gate passed, but good check
-        throw new Error("Pizdec! Trying to save empty lesson.");
+        throw new Error("Trying to save empty lesson.");
     }
 
     const { lessonId, lesson: content } = state;

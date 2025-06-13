@@ -78,7 +78,7 @@ async function loadTestData(state) {
   console.log("--- Node: loadTestData ---");
   const { userId, testId } = state;
   if (!userId || !testId) {
-    return { error: "Missing userId or testId, pizdec!" };
+    return { error: "Missing userId or testId!" };
   }
   try {
     const client = new MongoClient(process.env.MONGODB_URI);

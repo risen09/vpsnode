@@ -3,6 +3,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../../../middlewares/authenticate');
 const { fetchUserInfo, calculateAge } = require('../../../utils/vk');
+const { encryptToken, decryptToken } = require('../../../utils/cryptoUtils');
 const User = require('../../../models/User')
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -53,7 +54,7 @@ router.post('/', async (req, res) => {
     let userId = user ? user._id.toString() : null;
     if (userId) {
       console.log('[API /auth/vk] found user id ', userId);
-      await User.updateOne({ _id: userId }, { $set: { 'vkProfile.access_token': access_token, 'vkProfile.expires_at': Math.floor(Date.now() / 1000) + 3600, 'vkProfile.refresh_token': refresh_token, 'vkProfile.id_token': id_token }});
+      await User.updateOne({ _id: userId }, { $set: { 'vkProfile.access_token': encryptToken(access_token).combined, 'vkProfile.expires_at': Math.floor(Date.now() / 1000) + 3600, 'vkProfile.refresh_token': encryptToken(refresh_token).combined, 'vkProfile.id_token': id_token }});
     } else {
       const fetchedData = await fetchUserInfo(access_token, device_id)
       console.log('[API /auth/vk] creating new user');
@@ -65,12 +66,12 @@ router.post('/', async (req, res) => {
         // avatar: fetchedData.avatar,
         gender: +(fetchedData.sex - 1),
         age: calculateAge(fetchedData.birthday),
-        grade: calculateAge(fetchedData.birthday) - 6,
+        // grade: calculateAge(fetchedData.birthday) - 6,
         vkProfile: {
           id: vkUserId,
-          access_token,
+          access_token: encryptToken(access_token).combined,
           expires_at: Math.floor(Date.now() / 1000) + 3600,
-          refresh_token,
+          refresh_token: encryptToken(refresh_token).combined,
           id_token,
           device_id,
         },
@@ -116,10 +117,11 @@ router.post('/logout', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'Нет VK токена для пользователя' });
   }
 
+
   const url = 'https://id.vk.com/oauth2/logout';
   const data = {
     client_id: VK_CLIENT_ID,
-    access_token: accessToken
+    access_token: decryptToken(accessToken),
   };
 
   try {
